@@ -1,6 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module Parser (program) where
+module Parser (parseProgram) where
 
 import IR
 import Text.Parsec
@@ -134,3 +134,5 @@ program = sepEndBy userType newline >>= \uts ->
 	  sepEndBy global newline >>= \gs ->
 	  sepEndBy instruction newline >>= \is ->
 	  return $ Program uts ms gs is
+	
+parseProgram = parse program
