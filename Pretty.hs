@@ -44,18 +44,24 @@ instance Pretty Type where
     pretty (Pointer t) = pretty t <> char '*'
 
 instance Pretty UserType where
-    pretty (UserType n vs) = text ("type " ++ n) <> colon <+> vars
+    pretty (UserType n vs) = text ("    type " ++ n) <> colon <+> vars
 	where vars = hsep . map (\(n,s,t) -> text (n ++ "#") <> integer s <> colon <> pretty t) $ vs
 
 instance Pretty Method where
-    pretty (Method n l ps) = text ("method " ++ n ++ "@") <> integer l <> colon <> params
+    pretty (Method n l ps) = text ("    method " ++ n ++ "@") <> integer l <> colon <+> params
 	where params = hsep . map (\(n,s,t) -> text (n ++ "#") <> integer s <> colon <> pretty t) $ ps
 
 instance Pretty Global where
-    pretty (Global n s t) = text ("global" ++ n ++ "#") <> integer s <> colon <> pretty t
+    pretty (Global n s t) = text ("    global " ++ n ++ "#") <> integer s <> colon <> pretty t
 
 instance Pretty Instruction where
-    pretty (Instruction n op mt) = text "instr" <+> integer n <> colon <+> pretty op <+> pt
+    pretty (Instruction n op mt) = text "    instr" <+> integer n <> colon <+> pretty op <+> pt
 	where pt = case mt of
 		    (Just t) -> colon <> pretty t
 		    Nothing -> empty
+
+instance (Pretty a) => Pretty [a] where
+    pretty = vcat . map pretty
+
+instance Pretty Program where
+    pretty (Program uts ms gs is) = pretty uts $$ pretty ms $$ pretty gs $$ pretty is

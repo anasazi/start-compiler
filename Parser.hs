@@ -4,6 +4,9 @@ module Parser (parseProgram) where
 
 import IR
 import Text.Parsec
+import Text.Parsec.String (parseFromFile)
+
+parseProgram filename = parseFromFile program filename
 
 type Parser = Parsec String ()
 
@@ -129,10 +132,9 @@ instruction = string "instr" >> aspace >>
 	      optionMaybe (aspace >> colon >> typ) >>= \mt ->
 	      return $ Instruction r op mt
 
-program = sepEndBy userType newline >>= \uts ->
-	  sepEndBy method newline >>= \ms ->
-	  sepEndBy global newline >>= \gs ->
-	  sepEndBy instruction newline >>= \is ->
+program = spaces >>
+	  sepEndBy userType (newline >> spaces) >>= \uts ->
+	  sepEndBy method (newline >> spaces) >>= \ms ->
+	  sepEndBy global (newline >> spaces) >>= \gs ->
+	  sepEndBy instruction (newline >> spaces) >>= \is ->
 	  return $ Program uts ms gs is
-	
-parseProgram = parse program
