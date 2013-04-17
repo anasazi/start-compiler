@@ -16,6 +16,26 @@ main = do
 doRoutines ast = 
     let rs = routines ast in
     let bbs = map basicBlocks rs in
-    mapM_ (\(r,bb) -> putStrLn "routine"  >> print (pretty r) >> 
-		      (mapM_ (\b -> putStrLn "block\t" >> print (pretty b)) bb)) (zip rs bbs)
+    let ell = map buildEdgeList bbs in
+    let cfgs = map cfg rs in
+    mapM_ printRoutineEdgeListCFG $ zip3 rs ell cfgs
 
+printEdgeListNode (b,l,ks) = do
+    putStrLn "block"
+    print $ pretty b
+    putStr "label: "
+    print l
+    putStr "goes to: "
+    print ks
+    newline
+
+printEdgeList el = mapM_ printEdgeListNode el
+
+printRoutineWithEdgeList (r,el) = do
+    putStrLn "routine:"
+    print $ pretty r
+    printEdgeList el
+
+printRoutineEdgeListCFG (r,el,cfg) = do
+    printRoutineWithEdgeList (r,el)
+    print $ cfgGraph cfg

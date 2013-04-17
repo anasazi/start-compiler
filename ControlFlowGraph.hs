@@ -6,6 +6,8 @@ module ControlFlowGraph
 -- temp for testing
 , routines
 , basicBlocks
+, buildEdgeList
+, jumps
 ) where
 
 import IR
@@ -64,9 +66,33 @@ basicBlocks r = reverse . map reverse . snd $ foldl f (ls,[]) r
 						  | n == l2 = (l2:ls,[i]:b:bb)
 
 -- edges of the control flow graph where each block is represented by the location of its leader
-label :: [BasicBlock] -> [(BasicBlock, Integer, [Integer])]
-label = undefined
+-- TODO need to add fallthrough in conditional branches
+buildEdgeList :: [BasicBlock] -> [(BasicBlock, Integer, [Integer])]
+buildEdgeList bbl = map (\bb -> (bb, label bb, jumps begin end bb)) bbl
+    where label = (\(Instruction x _ _) -> x) . head :: BasicBlock -> Integer
+	  end = (\(Instruction x _ _) -> x) . last . last $ bbl :: Integer
+	  begin = label . head $ bbl
+
+-- labels of the blocks which a basic block exits to
+jumps :: Integer -> Integer -> BasicBlock -> [Integer]
+jumps minTarget maxTarget bb = nub . sort . (fall++) . map target . filter isJump $ bb
+    where isJump (Instruction _ (U Br _) _) = True
+	  isJump (Instruction _ (U Call (L t)) _) = minTarget <= t && t <= maxTarget
+	  isJump (Instruction _ (B Blbc _ _) _) = True
+	  isJump (Instruction _ (B Blbs _ _) _) = True
+	  isJump _ = False
+	  target (Instruction _ (U Br (L t)) _) = t
+	  target (Instruction _ (U Call (L t)) _) = t
+	  target (Instruction _ (B Blbc _ (L t)) _) = t
+	  target (Instruction _ (B Blbs _ (L t)) _) = t
+	  end@(Instruction n _ _) = last bb
+	  fall = if fallsOff && n+1 <= maxTarget then [n+1] else []
+	  fallsOff = case end of
+	    Instruction _ (U Br _) _ -> False
+	    Instruction _ (U Ret _) _ -> False
+	    otherwise -> True
+	  
 
 -- build the control flow graph
 cfg :: Routine -> ControlFlowGraph
-cfg = CFG . graphFromEdges . label . basicBlocks
+cfg = CFG . graphFromEdges . buildEdgeList . basicBlocks
