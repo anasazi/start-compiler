@@ -28,7 +28,7 @@ doCFG cfg = do
     print . map (\(a,b) -> (instr a, instr b)) . edges $ graph 
     where graph = cfgGraph cfg
 	  nodeLU = cfgNodeLU cfg
-	  keyLU = cfgKeyLU cfg
+	  keyLU = cfgVertexLU cfg
 	  node (n,_,_) = n
 	  label (Instruction n _ _) = n
 	  instr = label . head . node . nodeLU

@@ -2,7 +2,7 @@ module ControlFlowGraph
 ( Routine
 , BasicBlock
 , ControlFlowGraph
-, cfgGraph, cfgNodeLU, cfgKeyLU, cfg
+, cfgGraph, cfgNodeLU, cfgVertexLU, cfg
 -- temp for testing
 , routines
 , basicBlocks
@@ -19,7 +19,7 @@ type BasicBlock = [Instruction]
 newtype ControlFlowGraph = CFG (Graph, Vertex -> (BasicBlock, Integer, [Integer]), Integer -> Maybe Vertex)
 cfgGraph (CFG (g,_,_)) = g
 cfgNodeLU (CFG (_,n,_)) = n
-cfgKeyLU (CFG (_,_,k)) = k
+cfgVertexLU (CFG (_,_,k)) = k
 
 routines :: Program -> [Routine]
 routines (Program _ ms _ is) = map getInBounds bounds
