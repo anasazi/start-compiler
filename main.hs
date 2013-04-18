@@ -23,7 +23,8 @@ doRoutines ast =
 
 doCFG cfg = do 
     putStrLn . picture . dff $ graph
-    putStrLn . picture . flip dfs [0] $ graph
+    print . map (succs cfg . instr) $ vertices graph
+    print . map (preds cfg . instr) $ vertices graph
     print . map instr . topSort $ graph
     print . map (\(a,b) -> (instr a, instr b)) . edges $ graph 
     where graph = cfgGraph cfg

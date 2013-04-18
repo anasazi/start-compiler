@@ -3,6 +3,7 @@ module ControlFlowGraph
 , BasicBlock
 , ControlFlowGraph
 , cfgGraph, cfgNodeLU, cfgVertexLU, cfg
+, succs, preds
 -- temp for testing
 , routines
 , basicBlocks
@@ -20,6 +21,16 @@ newtype ControlFlowGraph = CFG (Graph, Vertex -> (BasicBlock, Integer, [Integer]
 cfgGraph (CFG (g,_,_)) = g
 cfgNodeLU (CFG (_,n,_)) = n
 cfgVertexLU (CFG (_,_,k)) = k
+
+succs :: ControlFlowGraph -> Integer -> Maybe [Integer]
+succs cfg k = cfgVertexLU cfg k >>= return . outs . cfgNodeLU cfg
+    where outs (_,_,x) = x
+
+preds :: ControlFlowGraph -> Integer -> Maybe [Integer]
+preds (CFG (g,nlu,vlu)) k = vlu k >>= \v -> return . extract . parents v . edges $ g
+    where key (_,x,_) = x
+	  parents v = filter ((==v) . snd)
+	  extract = map (key . nlu . fst)
 
 routines :: Program -> [Routine]
 routines (Program _ ms _ is) = map getInBounds bounds
