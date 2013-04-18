@@ -2,7 +2,7 @@ module ControlFlowGraph
 ( Routine
 , BasicBlock
 , ControlFlowGraph
-, cfgGraph, cfgNodeLookup, cfgKeyLookup, cfg
+, cfgGraph, cfgNodeLU, cfgKeyLU, cfg
 -- temp for testing
 , routines
 , basicBlocks
@@ -12,14 +12,14 @@ module ControlFlowGraph
 
 import IR
 import Data.Graph
-import Data.List (sort, nub, mapAccumL)
+import Data.List (sort, nub, mapAccumL, (\\))
 
 type Routine = [Instruction]
 type BasicBlock = [Instruction]
 newtype ControlFlowGraph = CFG (Graph, Vertex -> (BasicBlock, Integer, [Integer]), Integer -> Maybe Vertex)
 cfgGraph (CFG (g,_,_)) = g
-cfgNodeLookup (CFG (_,n,_)) = n
-cfgKeyLookup (CFG (_,_,k)) = k
+cfgNodeLU (CFG (_,n,_)) = n
+cfgKeyLU (CFG (_,_,k)) = k
 
 routines :: Program -> [Routine]
 routines (Program _ ms _ is) = map getInBounds bounds
@@ -91,8 +91,16 @@ jumps minTarget maxTarget bb = nub . sort . (fall++) . map target . filter isJum
 	    Instruction _ (U Br _) _ -> False
 	    Instruction _ (U Ret _) _ -> False
 	    otherwise -> True
-	  
-
+	
 -- build the control flow graph
 cfg :: Routine -> ControlFlowGraph
-cfg = CFG . graphFromEdges . buildEdgeList . basicBlocks
+cfg r = CFG . graphFromEdges $ el2
+--CFG . graphFromEdges . buildEdgeList . basicBlocks $ r
+    where s = start r
+	  el1 = buildEdgeList . basicBlocks $ r
+	  (g,nlu,vlu) = graphFromEdges el1
+	  (Just sv) = vlu s
+	  rvs = reachable g sv
+	  rbbs = map ((\(n,_,_) -> n) . nlu) rvs
+	  el2 = buildEdgeList $ rbbs
+
