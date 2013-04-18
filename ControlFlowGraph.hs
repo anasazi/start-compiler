@@ -4,11 +4,7 @@ module ControlFlowGraph
 , ControlFlowGraph
 , cfgGraph, cfgNodeLU, cfgVertexLU, cfg
 , succs, preds
--- temp for testing
 , routines
-, basicBlocks
-, buildEdgeList
-, jumps
 ) where
 
 import IR
@@ -22,12 +18,15 @@ cfgGraph (CFG (g,_,_)) = g
 cfgNodeLU (CFG (_,n,_)) = n
 cfgVertexLU (CFG (_,_,k)) = k
 
-succs :: ControlFlowGraph -> Integer -> Maybe [Integer]
-succs cfg k = cfgVertexLU cfg k >>= return . outs . cfgNodeLU cfg
+toJust (Just x) = x
+toJust Nothing = error "tried toJust on Nothing!"
+
+succs :: ControlFlowGraph -> Integer -> [Integer]
+succs cfg k = toJust $ cfgVertexLU cfg k >>= return . outs . cfgNodeLU cfg
     where outs (_,_,x) = x
 
-preds :: ControlFlowGraph -> Integer -> Maybe [Integer]
-preds (CFG (g,nlu,vlu)) k = vlu k >>= \v -> return . extract . parents v . edges $ g
+preds :: ControlFlowGraph -> Integer -> [Integer]
+preds (CFG (g,nlu,vlu)) k = toJust $ vlu k >>= \v -> return . extract . parents v . edges $ g
     where key (_,x,_) = x
 	  parents v = filter ((==v) . snd)
 	  extract = map (key . nlu . fst)
