@@ -6,6 +6,7 @@ import ControlFlowGraph
 import Data.Tree
 import Data.Graph
 import IR
+--import Cooper
 import Dominator
 import System.Time
 import qualified Data.Map as M
@@ -28,17 +29,19 @@ processRoutine !r = do
     let !vlu = cfgVertexLU theCFG
     -- actully time the dominator computation
     !start <- getClockTime
-    let !doms = dominators theCFG
-    let !idoms = idom doms
+    --let !idoms = cooper theCFG
+    let !idoms = dominators theCFG
     !end <- getClockTime
     let diff = diffClockTimes end start
     print diff
+--    let idoms' = strip idoms
     -- dump everything
     let key (_,x,_) = x
     let instr = key . nlu
     putStr "routine index: "
     print $ key . nlu $ 0
     let bs = map instr $ vertices graph
+    --mapM_ (\b -> dumpBlock theCFG idoms' b >> newline) bs
     mapM_ (\b -> dumpBlock theCFG idoms b >> newline) bs
 
 dumpBlock cfg idoms b = do

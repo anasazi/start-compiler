@@ -54,8 +54,8 @@ uop = choice
     , string "isnull" >> return Isnull
     , string "load" >> return Load
     , try $ string "neg" >> return Neg
-    , try $ string "new" >> return New
     , try $ string "newlist" >> return Newlist
+    , try $ string "new" >> return New
     , string "param" >> return Param
     , string "ret" >> return Ret
     , string "write" >> return Write
@@ -76,15 +76,20 @@ bop = choice
     , try $ string "mod" >> return Mod
     , try $ string "move" >> return Move
     , try $ string "mul" >> return Mul
-    , try $ string "stdynamic" >> return Stdynamic
     , try $ string "store" >> return Store
     , string "sub" >> return Sub
     ] <?> "binary op"
 
+top = choice
+    [ string "stdynamic" >> return Stdynamic
+    ]
+
 opcode = choice
     [ try $ zop >>= return . Z
     , try $ uop >>= \u -> aspace >> operand >>= return . U u 
-    , bop >>= \b -> aspace >> operand >>= \a -> aspace >> operand >>= return . B b a
+    , try $ bop >>= \b -> aspace >> operand >>= \a -> aspace >> operand >>= return . B b a
+    , top >>= \t -> aspace >> operand >>= \a -> aspace >> operand >>= \b -> 
+		    aspace >> operand >>= return . Ter t a b
     ] <?> "opcode"
 
 typ = (choice
@@ -113,8 +118,8 @@ method = string "method" >> aspace >>
 	 identifier >>= \m ->
 	 at >>
 	 integer >>= \l ->
-	 colon >> aspace >>
-	 varList >>= \ps ->
+	 colon >> option [] (aspace >>
+	 varList) >>= \ps ->
 	 return $ Method m l ps
 
 global = string "global" >> aspace >>

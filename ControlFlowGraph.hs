@@ -23,13 +23,15 @@ toJust !(Just x) = x
 toJust !Nothing = error "tried toJust on Nothing!"
 
 succs :: ControlFlowGraph -> Integer -> [Integer]
-succs !cfg !k = toJust $! cfgVertexLU cfg k >>= return . outs . cfgNodeLU cfg
+succs !(CFG (g,nlu,vlu)) !k = outs . nlu $! v
     where outs !(_,_,x) = x
+	  (Just !v) = vlu k
 
 preds :: ControlFlowGraph -> Integer -> [Integer]
-preds !(CFG (g,nlu,vlu)) k = toJust $! vlu k >>= \v -> return . extract . parents v . edges $! g
-    where key !(_,x,_) = x
-	  parents !v = filter ((==v) . snd)
+preds !(CFG (g,nlu,vlu)) !k = extract . parents . edges $! g
+    where key !(_,!x,_) = x
+	  (Just !v) = vlu k
+	  parents = filter ((==v) . snd)
 	  extract = map (key . nlu . fst)
 
 routines :: Program -> [Routine]

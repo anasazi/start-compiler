@@ -14,11 +14,13 @@ data Operand
     | L !Integer -- code location
     deriving (Eq, Show)
 
-data Opcode = Z !ZOp | U !UOp !Operand | B !BOp !Operand !Operand deriving (Eq, Show)
+data Opcode = Z !ZOp | U !UOp !Operand | B !BOp !Operand !Operand 
+	    | Ter !TOp !Operand !Operand !Operand deriving (Eq, Show)
 data ZOp = Wrl | Entrypc | Nop deriving (Eq, Show)
 data UOp = Neg | Isnull | Load | New | Newlist | Checknull | Br | Call | Write | Enter | Ret | Param deriving (Eq, Show)
 data BOp = Add | Sub | Mul | Div | Mod | Cmpeq | Cmple | Cmplt | Istype | Move | Lddynamic
-	 | Blbc | Blbs | Store | Checktype | Checkbounds | Stdynamic deriving (Eq, Show)
+	 | Blbc | Blbs | Store | Checktype | Checkbounds deriving (Eq, Show)
+data TOp = Stdynamic deriving (Eq, Show)
 
 data Type = UInt | UBool | BInt | BBool | List | Class !String | Dynamic | Pointer !Type deriving (Eq, Show)
 

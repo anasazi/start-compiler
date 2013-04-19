@@ -1,57 +1,101 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE BangPatterns #-}
-module Dominator where
+module Dominator (dominators) where
 
 import ControlFlowGraph
 import Data.Graph
 import qualified Data.Map as M
-import qualified Data.Set as S
-import Control.Monad ((>=>))
+import Data.List (sort, sortBy, maximumBy)
+import Data.Ord
 
-type Node = Integer
-type NodeSet = S.Set Node
-type Out = M.Map Node NodeSet
-type In = M.Map Node NodeSet
-type Doms = M.Map Node NodeSet
-type IDom = M.Map Node (Maybe Node)
+newtype Loc = Loc Integer deriving (Eq, Ord, Show)
+data RPO = RPO Integer Loc deriving (Eq, Show)
+instance Ord RPO where
+    compare (RPO a _) (RPO b _) = compare a b
 
-idom :: Doms -> IDom
-idom !doms = M.mapWithKey (\k ds -> extract . imm k ds $! expansion ds) doms
-    where
-    extract = safeHead >=> return . S.findMax :: [NodeSet] -> Maybe Node
-    safeHead ![] = Nothing
-    safeHead !(x:_) = Just x
-    imm !k !ds = filter (==(S.delete k ds)) :: [NodeSet] -> [NodeSet]
-    expansion !ds = map (doms M.!) (S.toList ds) :: [NodeSet]
+newtype Doms = Doms (M.Map RPO (Maybe RPO)) deriving (Eq, Show)
+newtype IDom = IDom (M.Map Loc (Maybe Loc)) deriving Eq
+newtype ReversePostOrder = ReversePostOrder [RPO] deriving Show
+newtype RPOPred = RPOPred (M.Map RPO [RPO]) deriving Show
 
-dominators :: ControlFlowGraph -> Doms
-dominators !cfg = forwardDataFlow values entry transfer meet boundary pred
-    where (!g,!nlu,!vlu) = (cfgGraph cfg, cfgNodeLU cfg, cfgVertexLU cfg)
-	  key (_,!x,_) = x
-	  values = map (key . nlu) . vertices $! g :: Values
-	  entry = key . nlu $! 0 :: Entry
-	  transfer = S.insert :: Transfer
-	  meet = S.intersection :: Meet
-	  boundary = S.singleton entry :: Boundary
-	  pred = preds cfg :: Pred
+toJust _ (Just x) = x
+toJust msg Nothing = error msg
 
+key (_,x,_) = x
 
-type Values = [Node]
-type Entry = Node
-type Transfer = Node -> NodeSet -> NodeSet
-type Meet = NodeSet -> NodeSet -> NodeSet
-type Boundary = NodeSet
-type Pred = Node -> [Node]
-forwardDataFlow :: Values -> Entry -> Transfer -> Meet -> Boundary -> Pred -> Out
-forwardDataFlow !vs !e !t !m !b !p = snd $! converge next (in0,out0)
-    where in0 = M.fromList $! zip vs (repeat $! S.empty) :: In
-	  out0 = M.insert e b $! M.fromList $! zip vs (repeat $! S.fromList vs) :: Out
-	  next !(!inA,!outA) = (inStep inA outA, outStep inA outA) :: (In,Out)
-	  inStep !inA !outA = M.mapWithKey (\k o -> if k == e then inA M.! e else foldl1 m (map (outA M.!) $! p k)) outA
-	  outStep !inA !outA = M.mapWithKey (\k i -> if k == e then outA M.! e else t k i) inA
-	  !(!inEnd,!outEnd) = converge next (in0, out0) :: (In,Out)
+rpo (RPO r _) = r
 
-converge next init = fst $! until unchanged step (boot init)
-    where boot !x = (x, next x)
-          step !(_,!b) = (b, next b)
-	  unchanged !(!a,!b) = a == b
+-- flip the signs since we flipped RPO #s
+intersect :: Doms -> RPO -> RPO -> RPO
+intersect ds@(Doms doms) b1 b2 | b1 == b2 = b1
+			       | b1 >  b2 = intersect ds (toJust "intersect" $! doms M.! b1) b2
+			       | b1 <  b2 = intersect ds b1 (toJust "intersect" $! doms M.! b2)
+
+reversePostOrder :: ControlFlowGraph -> ReversePostOrder
+reversePostOrder cfg = 
+    ReversePostOrder . zipWith RPO [1..] . {-reverse . -}map (Loc . key . cfgNodeLU cfg) . topSort . cfgGraph $! cfg
+    where f = Loc . key . cfgNodeLU cfg
+	  g = cfgGraph cfg
+	  ff (a,b) = (f a, f b)
+
+rpoPred :: ControlFlowGraph -> ReversePostOrder -> RPOPred
+rpoPred cfg (ReversePostOrder rpo) = RPOPred . M.fromList $ map buildPreds rpo
+    where buildPreds c@(RPO _ (Loc v)) = (c, map buildRPO (preds cfg v)) 
+          buildRPO p = head . filter (\(RPO _ (Loc v)) -> v == p) $ rpo
+-- map over RPO
+-- for each: extract node val 
+--           get predecessors for it
+--	     map over predecessors    
+--           for each: search for them in the RPO
+--		       get the RPO value and wrap in RPO constructor
+--	     construct a tuple of (rpo, [rpo preds])
+-- wrap it up with RPOPred and M.fromList
+
+-- last node in reverse post order should be the start node?
+start :: ReversePostOrder -> RPO
+start (ReversePostOrder order) = head {-last-} order -- maximumBy (comparing loc) order
+    where loc (RPO _ (Loc v)) = v
+
+initDoms :: ReversePostOrder -> Doms
+initDoms rpo@(ReversePostOrder order) = Doms . startNode $ otherNodes
+    where n0 = start rpo
+	  startNode = M.insert n0 (Just n0)
+	  otherNodes = M.fromList $ zip order (repeat Nothing)
+
+newDomsForLoc :: RPOPred -> Doms -> RPO -> Doms
+newDomsForLoc (RPOPred pred) ds@(Doms doms) b = update . collapse . sort . processedOnly $ pred M.! b
+    where update = Doms . (\v -> M.insert b v doms) :: Maybe RPO -> Doms
+	  collapse [] = error "There should always be a processed predecessor." 
+	  collapse (r:rs) = foldl f (Just r) rs
+	  f !ma !b = ma >>= \a -> return $! intersect ds b a
+	  processedOnly = filter (\x -> Nothing /= (doms M.! x))
+-- get predecessors of b
+-- sort by RPO order
+-- fold1 over (first is new idom) with intersect
+-- insert new idom into doms
+
+newDoms :: ReversePostOrder -> RPOPred -> Doms -> Doms
+newDoms rpo@(ReversePostOrder order) pred doms = foldl f doms order
+    where f old b | b == start rpo = old
+		  | otherwise  = newDomsForLoc pred old b
+
+loopWhileChanged :: ReversePostOrder -> RPOPred -> Doms -> Doms
+loopWhileChanged !order !pred !old = if old == new then old else loopWhileChanged order pred new
+    where new = newDoms order pred old
+
+rpoToLoc :: RPO -> Loc
+rpoToLoc (RPO _ n) = n
+
+domsToIDom :: Doms -> IDom
+domsToIDom (Doms doms) = IDom . M.mapKeys rpoToLoc . M.map (fmap rpoToLoc) $ doms
+
+cooper :: ControlFlowGraph -> IDom
+cooper cfg = domsToIDom $! loopWhileChanged rpo pred init
+    where rpo = reversePostOrder cfg
+	  pred = rpoPred cfg rpo
+	  init = initDoms rpo
+
+strip :: IDom -> M.Map Integer (Maybe Integer)
+strip (IDom idom) = M.mapKeys val . M.map (fmap val) $ idom
+    where val (Loc v) = v 
+
+dominators = strip . cooper

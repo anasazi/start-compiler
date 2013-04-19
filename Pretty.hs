@@ -28,10 +28,14 @@ instance Pretty UOp where
 instance Pretty BOp where
     pretty = text . map toLower . show
 
+instance Pretty TOp where
+    pretty = text . map toLower . show
+
 instance Pretty Opcode where
     pretty (Z z) = pretty z
     pretty (U u x) = pretty u <+> pretty x
     pretty (B b x y) = pretty b <+> pretty x <+> pretty y
+    pretty (Ter t x y z) = pretty t <+> pretty x <+> pretty y <+> pretty z
 
 instance Pretty Type where
     pretty UInt = text "int"
