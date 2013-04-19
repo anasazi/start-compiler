@@ -1,0 +1,7 @@
+#!/bin/bash
+for file in ./examples/*.start; do
+    echo "compiling $file"
+    #name="`basename $file .dart`.start"
+    #dart ../start/bin/start.dart -c "$file" > "./examples/$name"
+    timeout 5m ./main $file >"./processed/`basename $file`.txt"
+done
