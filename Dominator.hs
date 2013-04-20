@@ -1,9 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
-module Dominator (dominators) where
+module Dominator (immediateDominators, dominators) where
 
 import ControlFlowGraph
 import Data.Graph
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.List (sort, sortBy, maximumBy)
 import Data.Ord
 
@@ -98,4 +99,9 @@ strip :: IDom -> M.Map Integer (Maybe Integer)
 strip (IDom !idom) = M.mapKeys val . M.map (fmap val) $ idom
     where val (Loc !v) = v 
 
-dominators = strip . cooper
+immediateDominators = strip . cooper
+
+dominators :: M.Map Integer (Maybe Integer) -> M.Map Integer (S.Set Integer)
+dominators idoms = M.mapWithKey allDoms idoms
+    where allDoms _ Nothing  = S.empty 
+	  allDoms k (Just b) = if k == b then S.singleton b else S.insert b (allDoms b (idoms M.! b))
