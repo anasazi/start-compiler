@@ -33,15 +33,18 @@ processRoutine !r = do
     let !idoms = dominators theCFG
     !end <- getClockTime
     let diff = diffClockTimes end start
-    print diff
---    let idoms' = strip idoms
+    let time = (fromIntegral (tdPicosec diff)) / 1e6
+    let numNodes = length $ vertices graph
+    let numEdges = length $ edges graph
+    putStrLn $ "nodes: " ++ show numNodes ++ " - edges: " ++ show numEdges ++ " - time: " ++ show time
+    --putStrLn $ "Dominator computed in " ++ show time ++ " microseconds"
+
     -- dump everything
     let key (_,x,_) = x
     let instr = key . nlu
     putStr "routine index: "
     print $ key . nlu $ 0
     let bs = map instr $ vertices graph
-    --mapM_ (\b -> dumpBlock theCFG idoms' b >> newline) bs
     mapM_ (\b -> dumpBlock theCFG idoms b >> newline) bs
 
 dumpBlock cfg idoms b = do

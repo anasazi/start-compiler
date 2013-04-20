@@ -1,4 +1,6 @@
 #!/bin/bash
+mkdir ./examples
+mkdir ./processed
 for file in ../start/examples/*.dart; do
     echo "compiling $file"
     dart ../start/bin/start.dart -c "$file" > "./examples/`basename $file .dart`.start"
