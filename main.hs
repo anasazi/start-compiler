@@ -6,10 +6,10 @@ import ControlFlowGraph
 import Data.Tree
 import Data.Graph
 import IR
---import Cooper
 import Dominator
 import System.Time
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 newline = putStr "\n"
 
@@ -30,13 +30,14 @@ processRoutine !r = do
     -- actully time the dominator computation
     !start <- getClockTime
     --let !idoms = cooper theCFG
-    let !idoms = dominators theCFG
+    let !idoms = immediateDominators theCFG
     !end <- getClockTime
     let diff = diffClockTimes end start
     let time = (fromIntegral (tdPicosec diff)) / 1e6
     let numNodes = length $ vertices graph
     let numEdges = length $ edges graph
-    putStrLn $ "nodes: " ++ show numNodes ++ " - edges: " ++ show numEdges ++ " - time: " ++ show time
+    let maxDomSize = maximum . M.elems . M.map S.size . dominators $ idoms
+    putStrLn $ "nodes: " ++ show numNodes ++ " - edges: " ++ show numEdges ++  " - dom: " ++ show maxDomSize ++ " - time: " ++ show time
     --putStrLn $ "Dominator computed in " ++ show time ++ " microseconds"
 
     -- dump everything
