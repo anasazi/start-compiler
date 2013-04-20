@@ -4,9 +4,8 @@ module Parser (parseProgram) where
 
 import IR
 import Text.Parsec
-import Text.Parsec.String (parseFromFile)
 
-parseProgram filename = parseFromFile program filename
+parseProgram contents = parse program "" contents
 
 type Parser = Parsec String ()
 

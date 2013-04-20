@@ -1,0 +1,60 @@
+\documentclass{article}
+\usepackage{fullpage}
+
+\author{Eric Reed}
+\title{CSE 501\\ Programming Assignment 1}
+\date{\today}
+\begin{document}
+\maketitle
+
+I used the Cooper et al. version of the dominator algorithm.
+According to the paper ``A Simple, Fast Dominance Algorithm'',
+the algorithm has a complexity $O(N+E*D)$ where $D$ is the size of the dominator sets.
+Based on the data from the examples, my implementation seems to reflect this complexity.
+The average estimated constant factor is $4.810$. 
+The average difference between actual time and estimated time is $-2.296$ $\mu$s.
+If the outlier (estimated constant factor $= 25.333$) is ignored, the average estimated constant factor is $4.077$
+and the average difference between actual time and estimated time is $-1.887$ $\mu$s.
+
+\begin{center}
+\begin{tabular}{||c|c|c|c|c|c|c|c||} \hline
+N & E & D & T in $\mu$s & $N+E*D$ & Est. Const. Factor & Avg Est. Const Factor Est. Time & $T -$ Est. Time \\ \hline \hline
+1 & 0 & 1 & 14 & 1 & 14 & 4.810 & 0.656 \\ \hline
+1 & 0 & 1 & 8  & 1 & 8 & 4.810 & 0.399 \\ \hline
+3 & 3 & 1 & 19 & 6 & 3.167 & 28.860 & -0.519 \\ \hline
+4 & 4 & 2 & 24 & 12 & 2 & 57.721 & -1.405 \\ \hline
+1 & 0 & 1 & 8 & 1 & 8 & 4.810 & 0.399 \\ \hline
+
+4 & 5 & 1 & 23 & 9 & 2.556 & 43.291 & -0.882 \\ \hline
+4 & 5 & 1 & 18 & 9 & 2 & 43.291 & -1.405 \\ \hline
+1 & 0 & 1 & 8 & 1 & 8 & 4.810 & 0.399 \\ \hline
+4 & 5 & 1 & 28 & 9 & 3.111 & 43.291 & -0.546 \\ \hline
+1 & 0 & 1 & 8 & 1 & 8 & 4.810 & 0.399 \\ \hline
+
+1 & 0 & 1 & 8 & 1 & 8 & 4.810 & 0.399 \\ \hline
+4 & 5 & 1 & 22 & 9 & 2.444 & 43.291 & -0.968 \\ \hline
+4 & 5 & 1 & 17 & 9 & 1.889 & 43.291 & -1.547 \\ \hline
+1 & 0 & 1 & 8 & 1 & 8 & 4.810 & 0.399 \\ \hline
+19 & 24 & 12 & 120 & 307 & 0.391 & 1476.695 & -11.306 \\ \hline
+
+4 & 4 & 2 & 27 & 12 & 2.25 & 57.721 & -1.138 \\ \hline
+40 & 52 & 14 & 325 & 768 & 0.423 & 3694.142 & -10.367 \\ \hline
+4 & 4 & 2 & 21 & 12 & 1.75 & 57.721 & -1.749 \\ \hline
+4 & 4 & 2 & 17 & 12 & 1.417 & 57.721 & -2.395 \\ \hline
+13 & 17 & 6 & 54 & 115 & 0.470 & 553.159 & -9.244 \\ \hline
+
+4 & 4 & 2 & 62 & 12 & 5.167 & 57.721 & 0.069 \\ \hline
+1 & 0 & 1 & 9 & 1 & 9 & 4.810 & 0.466 \\ \hline
+9 & 11 & 2 & 34 & 31 & 1.097 & 149.113 & -3.386 \\ \hline
+4 & 4 & 1 & 18 & 8 & 2.25 & 38.481 & -1.138 \\ \hline
+1 & 0 & 1 & 9 & 1 & 9 & 4.810 & 0.466 \\ \hline
+
+4 & 4 & 2 & 304 & 12 & 25.333 & 57.721 & 0.810 \\ \hline
+16 & 21 & 7 & 64 & 163 & 0.391 & 784.043 & -11.250 \\ \hline
+18 & 23 & 9 & 133 & 225 & 0.591 & 1082.268 & -7.137 \\ \hline
+7 & 8 & 4 & 31 & 39 & 0.794 & 187.593 & -5.051 \\ \hline
+
+\end{tabular}
+\end{center}
+
+\end{document}

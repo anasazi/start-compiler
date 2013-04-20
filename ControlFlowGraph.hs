@@ -23,19 +23,19 @@ toJust !(Just x) = x
 toJust !Nothing = error "tried toJust on Nothing!"
 
 succs :: ControlFlowGraph -> Integer -> [Integer]
-succs !(CFG (g,nlu,vlu)) !k = outs . nlu $! v
-    where outs !(_,_,x) = x
+succs (CFG (g,nlu,vlu)) !k = outs . nlu $! v
+    where outs (_,_,x) = x
 	  (Just !v) = vlu k
 
 preds :: ControlFlowGraph -> Integer -> [Integer]
-preds !(CFG (g,nlu,vlu)) !k = extract . parents . edges $! g
-    where key !(_,!x,_) = x
+preds (CFG (g,nlu,vlu)) !k = extract . parents . edges $! g
+    where key (_,!x,_) = x
 	  (Just !v) = vlu k
 	  parents = filter ((==v) . snd)
 	  extract = map (key . nlu . fst)
 
 routines :: Program -> [Routine]
-routines !(Program _ ms _ is) = map getInBounds bounds
+routines (Program _ !ms _ is) = map getInBounds bounds
   where 
   bounds = zip (map rloc ms) (drop 1 (map rloc ms) ++ [1 + iloc (last is)])
   getInBounds !(a,b) = filter (\i -> iloc i >= a && iloc i < b) is

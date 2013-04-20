@@ -14,9 +14,8 @@ import qualified Data.Map as M
 newline = putStr "\n"
 
 main = do 
-    !args <- getArgs
-    let !filename = head args
-    !parseOut <- parseProgram filename
+    !contents <- getContents
+    let !parseOut = parseProgram contents
     either print doRoutines parseOut
 	
 doRoutines !ast = mapM_ processRoutine $! routines ast
@@ -28,17 +27,16 @@ processRoutine !r = do
     let !nlu = cfgNodeLU theCFG
     let !vlu = cfgVertexLU theCFG
     -- actully time the dominator computation
-    !start <- getClockTime
-    --let !idoms = cooper theCFG
+--    !start <- getClockTime
     let !idoms = dominators theCFG
+{-
     !end <- getClockTime
     let diff = diffClockTimes end start
     let time = (fromIntegral (tdPicosec diff)) / 1e6
     let numNodes = length $ vertices graph
     let numEdges = length $ edges graph
     putStrLn $ "nodes: " ++ show numNodes ++ " - edges: " ++ show numEdges ++ " - time: " ++ show time
-    --putStrLn $ "Dominator computed in " ++ show time ++ " microseconds"
-
+-}
     -- dump everything
     let key (_,x,_) = x
     let instr = key . nlu

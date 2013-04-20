@@ -1,3 +1,2 @@
 #!/bin/bash
-ghc -O2 --make main.hs 
-#./clean
+ghc -O2 --make -o dominators main.hs 
