@@ -28,8 +28,8 @@ rpo (RPO r _) = r
 -- flip the signs since we flipped RPO #s
 intersect :: Doms -> RPO -> RPO -> RPO
 intersect ds@(Doms doms) b1 b2 | b1 == b2 = b1
-			       | b1 >  b2 = intersect ds (toJust "intersect" $! doms M.! b1) b2
-			       | b1 <  b2 = intersect ds b1 (toJust "intersect" $! doms M.! b2)
+			       | b1 >  b2 = intersect ds (toJust "intersect" $ doms M.! b1) b2
+			       | b1 <  b2 = intersect ds b1 (toJust "intersect" $ doms M.! b2)
 
 reversePostOrder :: ControlFlowGraph -> ReversePostOrder
 reversePostOrder cfg = 
@@ -67,7 +67,7 @@ newDomsForLoc (RPOPred pred) ds@(Doms doms) b = update . collapse . sort . proce
     where update = Doms . (\v -> M.insert b v doms) :: Maybe RPO -> Doms
 	  collapse [] = error "There should always be a processed predecessor." 
 	  collapse (r:rs) = foldl f (Just r) rs
-	  f !ma !b = ma >>= \a -> return $! intersect ds b a
+	  f ma b = ma >>= \a -> return $ intersect ds b a
 	  processedOnly = filter (\x -> Nothing /= (doms M.! x))
 -- get predecessors of b
 -- sort by RPO order
@@ -80,14 +80,14 @@ newDoms rpo@(ReversePostOrder order) pred doms = foldl f doms order
 		  | otherwise  = newDomsForLoc pred old b
 
 loopWhileChanged :: ReversePostOrder -> RPOPred -> Doms -> Doms
-loopWhileChanged !order !pred !old = if old == new then old else loopWhileChanged order pred new
+loopWhileChanged order pred old = if old == new then old else loopWhileChanged order pred new
     where new = newDoms order pred old
 
 rpoToLoc :: RPO -> Loc
 rpoToLoc (RPO _ n) = n
 
 domsToIDom :: Doms -> IDom
-domsToIDom (Doms !doms) = IDom . M.mapKeys rpoToLoc . M.map (fmap rpoToLoc) $ doms
+domsToIDom (Doms doms) = IDom . M.mapKeys rpoToLoc . M.map (fmap rpoToLoc) $ doms
 
 cooper :: ControlFlowGraph -> IDom
 cooper cfg = domsToIDom $ loopWhileChanged rpo pred init
@@ -96,8 +96,8 @@ cooper cfg = domsToIDom $ loopWhileChanged rpo pred init
 	  init = initDoms rpo
 
 strip :: IDom -> M.Map Integer (Maybe Integer)
-strip (IDom !idom) = M.mapKeys val . M.map (fmap val) $ idom
-    where val (Loc !v) = v 
+strip (IDom idom) = M.mapKeys val . M.map (fmap val) $ idom
+    where val (Loc v) = v 
 
 immediateDominators = strip . cooper
 
