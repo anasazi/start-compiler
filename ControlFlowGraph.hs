@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module ControlFlowGraph 
 ( Routine
 , BasicBlock
@@ -107,7 +106,7 @@ jumps minTarget maxTarget bb = nub . sort . (fall++) . map target . filter isJum
 	
 -- build the control flow graph
 cfg :: Routine -> ControlFlowGraph
-cfg r = CFG $ graphFromEdges $ el2
+cfg r = CFG . graphFromEdges $ el2
     where s = start r
 	  el1 = buildEdgeList . basicBlocks $ r
 	  (g,nlu,vlu) = graphFromEdges el1

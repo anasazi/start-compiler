@@ -1,12 +1,10 @@
-{-# LANGUAGE BangPatterns #-}
 module Dominator (immediateDominators, dominators) where
 
 import ControlFlowGraph
 import Data.Graph
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.List (sort, sortBy, maximumBy)
-import Data.Ord
+import Data.List (sort)
 
 newtype Loc = Loc Integer deriving (Eq, Ord, Show)
 data RPO = RPO Integer Loc deriving (Eq, Show)
@@ -42,18 +40,9 @@ rpoPred :: ControlFlowGraph -> ReversePostOrder -> RPOPred
 rpoPred cfg (ReversePostOrder rpo) = RPOPred . M.fromList $ map buildPreds rpo
     where buildPreds c@(RPO _ (Loc v)) = (c, map buildRPO (preds cfg v)) 
           buildRPO p = head . filter (\(RPO _ (Loc v)) -> v == p) $ rpo
--- map over RPO
--- for each: extract node val 
---           get predecessors for it
---	     map over predecessors    
---           for each: search for them in the RPO
---		       get the RPO value and wrap in RPO constructor
---	     construct a tuple of (rpo, [rpo preds])
--- wrap it up with RPOPred and M.fromList
 
--- last node in reverse post order should be the start node?
 start :: ReversePostOrder -> RPO
-start (ReversePostOrder order) = head {-last-} order -- maximumBy (comparing loc) order
+start (ReversePostOrder order) = head order 
     where loc (RPO _ (Loc v)) = v
 
 initDoms :: ReversePostOrder -> Doms
@@ -69,10 +58,6 @@ newDomsForLoc (RPOPred pred) ds@(Doms doms) b = update . collapse . sort . proce
 	  collapse (r:rs) = foldl f (Just r) rs
 	  f ma b = ma >>= \a -> return $ intersect ds b a
 	  processedOnly = filter (\x -> Nothing /= (doms M.! x))
--- get predecessors of b
--- sort by RPO order
--- fold1 over (first is new idom) with intersect
--- insert new idom into doms
 
 newDoms :: ReversePostOrder -> RPOPred -> Doms -> Doms
 newDoms rpo@(ReversePostOrder order) pred doms = foldl f doms order

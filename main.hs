@@ -1,15 +1,10 @@
-{-# LANGUAGE BangPatterns #-}
 import Parser
 import Pretty
-import System.Environment (getArgs)
 import ControlFlowGraph
-import Data.Tree
 import Data.Graph
 import IR
 import Dominator
-import System.Time
 import qualified Data.Map as M
-import qualified Data.Set as S
 
 newline = putStr "\n"
 
