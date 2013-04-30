@@ -14,30 +14,18 @@ import qualified Data.Set as S
 newline = putStr "\n"
 
 main = do 
-    !contents <- getContents
-    let !parseOut = parseProgram contents
+    contents <- getContents
+    let parseOut = parseProgram contents
     either print doRoutines parseOut
 	
-doRoutines !ast = mapM_ processRoutine $! routines ast
+doRoutines ast = mapM_ processRoutine $ routines ast
 
-processRoutine !r = do
-    -- make sure we've built everything fully!
-    let !theCFG = cfg r
-    let !graph = cfgGraph theCFG
-    let !nlu = cfgNodeLU theCFG
-    let !vlu = cfgVertexLU theCFG
-    -- actully time the dominator computation
---    !start <- getClockTime
-    let !idoms = immediateDominators theCFG
-{-
-    !end <- getClockTime
-    let diff = diffClockTimes end start
-    let time = (fromIntegral (tdPicosec diff)) / 1e6
-    let numNodes = length $ vertices graph
-    let numEdges = length $ edges graph
-    let maxDomSize = maximum . M.elems . M.map S.size . dominators $ idoms
-    putStrLn $ "nodes: " ++ show numNodes ++ " - edges: " ++ show numEdges ++  " - dom: " ++ show maxDomSize ++ " - time: " ++ show time
--}
+processRoutine r = do
+    let theCFG = cfg r
+    let graph = cfgGraph theCFG
+    let nlu = cfgNodeLU theCFG
+    let vlu = cfgVertexLU theCFG
+    let idoms = immediateDominators theCFG
     -- dump everything
     let key (_,x,_) = x
     let instr = key . nlu
