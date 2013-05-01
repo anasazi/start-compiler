@@ -22,6 +22,7 @@ processRoutine r = do
     let vlu = cfgVertexLU theCFG
     let idoms = immediateDominators theCFG
     -- dump everything
+    print $ dominanceFrontier theCFG
     let key (_,x,_) = x
     let instr = key . nlu
     putStr "routine index: "

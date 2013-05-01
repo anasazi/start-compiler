@@ -1,2 +1,2 @@
 #!/bin/bash
-ghc -O2 --make -o dominators main.hs 
+ghc -O2 --make main.hs 

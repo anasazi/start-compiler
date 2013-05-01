@@ -1,5 +1,5 @@
 #!/bin/bash
 for file in ./examples/*.start; do
     echo "compiling $file"
-    ./dominators <$file >"./processed/`basename $file`.txt"
+    ./main <$file >"./processed/`basename $file`.txt"
 done

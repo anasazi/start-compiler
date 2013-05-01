@@ -1,4 +1,4 @@
-module Dominator (immediateDominators, dominators) where
+module Dominator (immediateDominators, dominators, dominanceFrontier) where
 
 import ControlFlowGraph
 import Data.Graph
@@ -31,7 +31,7 @@ intersect ds@(Doms doms) b1 b2 | b1 == b2 = b1
 
 reversePostOrder :: ControlFlowGraph -> ReversePostOrder
 reversePostOrder cfg = 
-    ReversePostOrder . zipWith RPO [1..] . {-reverse . -}map (Loc . key . cfgNodeLU cfg) . topSort . cfgGraph $ cfg
+    ReversePostOrder . zipWith RPO [1..] . map (Loc . key . cfgNodeLU cfg) . topSort . cfgGraph $ cfg
     where f = Loc . key . cfgNodeLU cfg
 	  g = cfgGraph cfg
 	  ff (a,b) = (f a, f b)
@@ -84,9 +84,46 @@ strip :: IDom -> M.Map Integer (Maybe Integer)
 strip (IDom idom) = M.mapKeys val . M.map (fmap val) $ idom
     where val (Loc v) = v 
 
+type ImmediateDominators = M.Map Integer (Maybe Integer)
+type Dominators = M.Map Integer (S.Set Integer)
+type DominanceFrontier = M.Map Integer (S.Set Integer)
+
+immediateDominators :: ControlFlowGraph -> ImmediateDominators
 immediateDominators = strip . cooper
 
-dominators :: M.Map Integer (Maybe Integer) -> M.Map Integer (S.Set Integer)
+dominators :: ImmediateDominators -> Dominators
 dominators idoms = M.mapWithKey allDoms idoms
     where allDoms _ Nothing  = S.empty 
 	  allDoms k (Just b) = if k == b then S.singleton b else S.insert b (allDoms b (idoms M.! b))
+
+children :: ImmediateDominators -> Integer -> S.Set Integer
+children idom x = S.fromList . filter (/=x) . M.keys . M.filter (==x) . collapse $ idom 
+    where collapse = M.map toJust . M.filter (/= Nothing)
+	  toJust (Just x) = x
+
+topoNodes :: ControlFlowGraph -> [Integer]
+topoNodes cfg = map (key . cfgNodeLU cfg) . topSort . cfgGraph $ cfg
+
+dominanceFrontier :: ControlFlowGraph -> DominanceFrontier
+dominanceFrontier cfg = foldl (oneDF cfg idom) init order
+    where (_,entry,_) = cfgNodeLU cfg 0
+	  -- this algorithm assumes the entry node has no idom. make it so.
+	  idom = M.insert entry Nothing $ immediateDominators cfg
+	  order = reverse . topoNodes $ cfg
+	  init = M.empty
+
+oneDF :: ControlFlowGraph -> ImmediateDominators -> DominanceFrontier -> Integer -> DominanceFrontier
+oneDF cfg idom df0 x =  upDF cfg idom x . localDF cfg idom x $ init
+    where init = M.insert x S.empty df0
+
+localDF :: ControlFlowGraph -> ImmediateDominators -> Integer -> DominanceFrontier -> DominanceFrontier
+localDF cfg idom x df = M.insert x (foldl f (df M.! x) (succs cfg x)) df
+    where f dfx y = case idom M.! y of
+			Nothing -> S.insert y dfx
+			(Just iy) -> if iy /= x then S.insert y dfx else dfx
+
+upDF :: ControlFlowGraph -> ImmediateDominators -> Integer -> DominanceFrontier -> DominanceFrontier
+upDF cfg idom x df = M.insert x (S.foldl (\dfx z -> S.foldl f dfx (df M.! z)) (df M.! x) (children idom x)) df
+    where f dfx y = case idom M.! y of
+			Nothing -> S.insert y dfx 
+			(Just iy) -> if iy /= x then S.insert y dfx else dfx
