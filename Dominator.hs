@@ -1,4 +1,9 @@
-module Dominator (immediateDominators, dominators, dominanceFrontier) where
+module Dominator 
+( immediateDominators, ImmediateDominators
+, dominators, Dominators
+, dominanceFrontier, DominanceFrontier
+, children
+) where
 
 import ControlFlowGraph
 import Data.Graph

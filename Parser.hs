@@ -27,6 +27,19 @@ identifier = (start >>= \a -> many rest >>= \as -> return $ a:as) <?> "identifie
 	  rest = start <|> digit
 
 operand = choice
+    [ try $ string "GP" >> return (Const GP)
+    , try $ string "FP" >> return (Const FP)
+    , integer >>= return . Const . C
+    , try $ identifierWithSuf (string "_base#") >>= \s -> integer >>= \i -> return $ Var (A s i)
+    , try $ identifierWithSuf (string "_offset#") >>= \s -> integer >>= \i -> return $ Var (SF s i)
+    , try $ identifierWithSuf (string "_offset#?") >>= \s -> return $ Var (DF s)
+    , try $ identifier >>= \s -> hash >> integer >>= \i -> return $ Var (SV s i) 
+    , parens integer >>= return . Const . R
+    , try $ identifierWithSuf (string "_type#") >>= \t -> integer >>= \i -> return . Const $ T t i
+    , brackets integer >>= return . Const . L
+    ] <?> "operand"
+{-
+operand = choice
     [ try $ string "GP" >> return GP
     , try $ string "FP" >> return FP
     , integer >>= return . C
@@ -38,6 +51,7 @@ operand = choice
     , try $ identifierWithSuf (string "_type#") >>= \t -> integer >>= \i -> return $ T t i
     , brackets integer >>= return . L
     ] <?> "operand"
+-}
 
 zop = choice
     [ string "wrl" >> return Wrl

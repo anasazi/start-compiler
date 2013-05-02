@@ -1,22 +1,39 @@
 module ControlFlowGraph 
 ( Routine
 , BasicBlock
-, ControlFlowGraph
+, ControlFlowGraph--, GenControlFlowGraph
 , cfgGraph, cfgNodeLU, cfgVertexLU, cfg
 , succs, preds
 , routines
+, graphToMap, mapToGraph, ControlFlowMap
 ) where
 
 import IR
 import Data.Graph
 import Data.List (sort, nub, mapAccumL, (\\))
+import qualified Data.Map as M
 
 type Routine = [Instruction]
 type BasicBlock = [Instruction]
-newtype ControlFlowGraph = CFG (Graph, Vertex -> (BasicBlock, Integer, [Integer]), Integer -> Maybe Vertex)
+newtype ControlFlowGraph = CFG (Graph, Vertex -> (BasicBlock, Integer, [Integer]), Integer -> Maybe Vertex) 
+
+instance Show ControlFlowGraph where
+    show (CFG (g,_,_)) = show g
+--newtype GenControlFlowGraph i = CFG (Graph, Vertex -> (i, Integer, [Integer]), Integer -> Maybe Vertex) 
+--type ControlFlowGraph = GenControlFlowGraph BasicBlock
 cfgGraph (CFG (g,_,_)) = g
 cfgNodeLU (CFG (_,n,_)) = n
 cfgVertexLU (CFG (_,_,k)) = k
+
+type ControlFlowMap = M.Map Integer (BasicBlock, [Integer])
+
+graphToMap :: ControlFlowGraph -> ControlFlowMap
+graphToMap cfg = M.fromList . map rearrange . map (cfgNodeLU cfg) . vertices . cfgGraph $ cfg
+    where rearrange (a,b,c) = (b,(a,c))
+
+mapToGraph :: ControlFlowMap -> ControlFlowGraph
+mapToGraph = CFG . graphFromEdges . map rearrange . M.toList
+    where rearrange (b,(a,c)) = (a,b,c)
 
 toJust (Just x) = x
 toJust Nothing = error "tried toJust on Nothing!"
@@ -51,9 +68,14 @@ targets = map extract . filter keep
 	  keep (Instruction _ (B Blbc _ _) _) = True
 	  keep (Instruction _ (B Blbs _ _) _) = True
 	  keep _ = False
+	  extract (Instruction _ (U Br   (Const (L t))) _)                = t
+	  extract (Instruction _ (B Blbc _              (Const (L t))) _) = t
+	  extract (Instruction _ (B Blbs _              (Const (L t))) _) = t
+	  {-
 	  extract (Instruction _ (U Br (L t)) _) = t
 	  extract (Instruction _ (B Blbc _ (L t)) _) = t
 	  extract (Instruction _ (B Blbs _ (L t)) _) = t
+	  -}
 
 -- instructions immediately after jumps are leaders
 followers = map follower . filter (jump . fst) . pairup
@@ -89,14 +111,21 @@ buildEdgeList bbl = map (\bb -> (bb, label bb, jumps begin end bb)) bbl
 jumps :: Integer -> Integer -> BasicBlock -> [Integer]
 jumps minTarget maxTarget bb = nub . sort . (fall++) . map target . filter isJump $ bb
     where isJump (Instruction _ (U Br _) _) = True
-	  isJump (Instruction _ (U Call (L t)) _) = minTarget <= t && t <= maxTarget
+	  --isJump (Instruction _ (U Call (L t)) _) = minTarget <= t && t <= maxTarget
+	  isJump (Instruction _ (U Call (Const (L t))) _) = minTarget <= t && t <= maxTarget
 	  isJump (Instruction _ (B Blbc _ _) _) = True
 	  isJump (Instruction _ (B Blbs _ _) _) = True
 	  isJump _ = False
+	  target (Instruction _ (U Br (Const (L t))) _) = t
+	  target (Instruction _ (U Call (Const (L t))) _) = t
+	  target (Instruction _ (B Blbc _ (Const (L t))) _) = t
+	  target (Instruction _ (B Blbs _ (Const (L t))) _) = t
+	  {-
 	  target (Instruction _ (U Br (L t)) _) = t
 	  target (Instruction _ (U Call (L t)) _) = t
 	  target (Instruction _ (B Blbc _ (L t)) _) = t
 	  target (Instruction _ (B Blbs _ (L t)) _) = t
+	  -}
 	  end@(Instruction n _ _) = last bb
 	  fall = if fallsOff && n+1 <= maxTarget then [n+1] else []
 	  fallsOff = case end of
