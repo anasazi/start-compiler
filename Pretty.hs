@@ -15,38 +15,32 @@ instance Pretty ConstOperand where
     pretty (T t s) = text (t ++ "_type#") <> integer s
     pretty (L l) = brackets . integer $ l
 
-instance Pretty VarOperand where
     pretty (A v o) = text (v ++ "_base#") <> integer o
     pretty (SF v o) = text (v ++ "_offset#") <> integer o
     pretty (DF v) = text (v ++ "_offset#?")
+
+instance Pretty VarOperand where
+{-
+    pretty (A v o) = text (v ++ "_base#") <> integer o
+    pretty (SF v o) = text (v ++ "_offset#") <> integer o
+    pretty (DF v) = text (v ++ "_offset#?")
+-}
     pretty (SV v o) = text (v ++ "#") <> integer o
 
 newtype SSAVarOperand = SSAVarOperand (VarOperand, Integer)
 
 instance Pretty SSAVarOperand where
+{-
     pretty (SSAVarOperand ((A v _),s))  = text (v ++ "_base$") <> integer s
     pretty (SSAVarOperand ((SF v _),s)) = text (v ++ "_offset$") <> integer s
     pretty (SSAVarOperand ((DF v),s))   = text (v ++ "_offset$") <> integer s
+-}
     pretty (SSAVarOperand ((SV v _),s)) = text (v ++ "$") <> integer s
 
 instance Pretty Operand where
     pretty (Const co) = pretty co
     pretty (Var vo) = pretty vo
     pretty (SSAVar vo sub) = pretty . SSAVarOperand $ (vo, sub)
-
-{-
-instance Pretty Operand where
-    pretty GP = text "GP"
-    pretty FP = text "FP"
-    pretty (C n) = integer n
-    pretty (A v o) = text (v ++ "_base#") <> integer o
-    pretty (SF v o) = text (v ++ "_offset#") <> integer o
-    pretty (DF v) = text (v ++ "_offset#?")
-    pretty (SV v o) = text (v ++ "#") <> integer o
-    pretty (R r) = parens . integer $ r
-    pretty (T t s) = text (t ++ "_type#") <> integer s
-    pretty (L l) = brackets . integer $ l
--}
 
 instance Pretty ZOp where
     pretty = text . map toLower . show
@@ -60,9 +54,8 @@ instance Pretty BOp where
 instance Pretty TOp where
     pretty = text . map toLower . show
 
---instance Pretty o => Pretty (GenOpcode o) where
 instance Pretty Opcode where
-    pretty (Phi v subs) = text "phi" <+> (hsep . map pretty . map (\s -> SSAVarOperand (v, s)) $ subs)
+    pretty (Phi v subs) = text "phi" <+> (hsep . map pretty . map (\(_,s) -> SSAVarOperand (v, s)) $ subs)
     pretty (Z z) = pretty z
     pretty (U u x) = pretty u <+> pretty x
     pretty (B b x y) = pretty b <+> pretty x <+> pretty y
@@ -89,7 +82,6 @@ instance Pretty Method where
 instance Pretty Global where
     pretty (Global n s t) = text ("    global " ++ n ++ "#") <> integer s <> colon <> pretty t
 
---instance Pretty a => Pretty (GenInstruction a) where
 instance Pretty Instruction where
     pretty (Instruction n op mt) = text "    instr" <+> integer n <> colon <+> pretty op <+> pt
 	where pt = case mt of
@@ -99,6 +91,5 @@ instance Pretty Instruction where
 instance (Pretty a) => Pretty [a] where
     pretty = vcat . map pretty
 
---instance (Pretty i) => Pretty (GenProgram i) where
 instance Pretty Program where
     pretty (Program uts ms gs is) = pretty uts $$ pretty ms $$ pretty gs $$ pretty is

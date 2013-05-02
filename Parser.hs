@@ -30,28 +30,20 @@ operand = choice
     [ try $ string "GP" >> return (Const GP)
     , try $ string "FP" >> return (Const FP)
     , integer >>= return . Const . C
+    {-
     , try $ identifierWithSuf (string "_base#") >>= \s -> integer >>= \i -> return $ Var (A s i)
     , try $ identifierWithSuf (string "_offset#") >>= \s -> integer >>= \i -> return $ Var (SF s i)
     , try $ identifierWithSuf (string "_offset#?") >>= \s -> return $ Var (DF s)
+    -}
+    , try $ identifierWithSuf (string "_base#") >>= \s -> integer >>= \i -> return $ Const (A s i)
+    , try $ identifierWithSuf (string "_offset#") >>= \s -> integer >>= \i -> return $ Const (SF s i)
+    , try $ identifierWithSuf (string "_offset#?") >>= \s -> return $ Const (DF s)
+
+    , try $ identifierWithSuf (string "_type#") >>= \t -> integer >>= \i -> return . Const $ T t i
     , try $ identifier >>= \s -> hash >> integer >>= \i -> return $ Var (SV s i) 
     , parens integer >>= return . Const . R
-    , try $ identifierWithSuf (string "_type#") >>= \t -> integer >>= \i -> return . Const $ T t i
     , brackets integer >>= return . Const . L
     ] <?> "operand"
-{-
-operand = choice
-    [ try $ string "GP" >> return GP
-    , try $ string "FP" >> return FP
-    , integer >>= return . C
-    , try $ identifierWithSuf (string "_base#") >>= \s -> integer >>= \i -> return $ A s i
-    , try $ identifierWithSuf (string "_offset#") >>= \s -> integer >>= \i -> return $ SF s i
-    , try $ identifierWithSuf (string "_offset#?") >>= return . DF
-    , try $ identifier >>= \s -> hash >> integer >>= \i -> return $ SV s i
-    , parens integer >>= return . R
-    , try $ identifierWithSuf (string "_type#") >>= \t -> integer >>= \i -> return $ T t i
-    , brackets integer >>= return . L
-    ] <?> "operand"
--}
 
 zop = choice
     [ string "wrl" >> return Wrl
