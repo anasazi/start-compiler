@@ -82,15 +82,10 @@ assigned cfm v = S.fromList . map key . filter contains $ nodes
 
 phiProgram :: (InstrID, NonSSA Program) -> [PhiPlaced ControlFlowMap]
 phiProgram (next, (NonSSA prgm)) = snd . mapAccumL phiRoutine next . map NonSSA . routines $ prgm
-{-
-    where nextInstrID = (+1) . maximum . map iloc $ is
-	  iloc (Instruction loc _ _) = loc
-	  (Program _ _ _ is) = prgm
--}
 
 phiRoutine :: InstrID -> NonSSA Routine -> (InstrID, PhiPlaced ControlFlowMap)
 phiRoutine nextInstrID (NonSSA r) = coerce . foldl phiVariable (nextInstrID, cfm0) $ vars
-    where cfm0 = NonSSA . graphToMap . cfg $ r -- gets correct routine
+    where cfm0 = NonSSA . graphToMap . cfg $ r 
 	  coerce (y,NonSSA x) = (y,PhiPlaced x)
 	  vars = S.toList $ variables r
 

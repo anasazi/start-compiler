@@ -5,15 +5,101 @@ import Data.Graph
 import IR
 import Dominator
 import SSA
+import ConstantPropagation
 import qualified Data.Map as M
+import qualified Data.List as L
+import System.Environment (getArgs)
+import Control.Monad
 
 newline = putStr "\n"
 
+data Opt = OptSCP | OptCSE | OptSSA deriving (Eq, Show)
+data Backend = BackendCFG | BackendIR | BackendSSA | BackendREPORT deriving (Eq, Show)
+
+toJust (Just x) = x
+
+processArgs :: [String] -> ([Opt], Backend)
+processArgs [back] = ([], processBack)
+    where processBack = matchBack . toJust . L.stripPrefix "-backend=" $ back
+	  matchBack "ssa" = BackendSSA
+	  matchBack "ir" = BackendIR
+	  matchBack "cfg" = BackendCFG
+	  matchBack "report" = error "report is not supported" --BackendREPORT
+processArgs [opt,back] = (processOpt, processBack)
+    where processOpt = map matchOpt . lines . map comma2newline . toJust . L.stripPrefix "-opt=" $ opt
+	  comma2newline c = if c == ',' then '\n' else c
+	  matchOpt "ssa" = OptSSA
+	  matchOpt "scp" = OptSCP
+	  matchOpt "cse" = OptCSE
+	  matchOpt "licm" = error "licm is not supported"
+	  matchOpt "copy" = error "copy is not supported"
+	  processBack = matchBack . toJust . L.stripPrefix "-backend=" $ back
+	  matchBack "ssa" = BackendSSA
+	  matchBack "ir" = BackendIR
+	  matchBack "cfg" = BackendCFG
+	  matchBack "report" = error "report is not supported" --BackendREPORT
+
+
 main = do 
+    args <- getArgs
+    let (opts, back) = processArgs args
+    contents <- getContents
+    let parseOut = parseProgram contents
+    --either print (\ast -> doMain (ast, opts, back)) parseOut
+    case parseOut of
+	Left err -> print err
+	Right ast -> doAST ast opts back
+
+doAST ast opts back = do
+    let (SSA ssa) = p2ssa $ NonSSA ast
+    let (SSA cp) = constantPropagation (SSA ssa)
+    let (NonSSA unssa) = ssa2p $ SSA ssa
+    let (NonSSA uncp) = ssa2p $ SSA cp
+    case back of
+	BackendCFG -> doRoutinesCFG ast
+	BackendSSA | OptSCP `elem` opts -> print . pretty $ cp
+		   | otherwise -> print . pretty $ ssa
+	BackendIR | OptSCP `elem` opts -> print . pretty $ uncp
+		  | OptSSA `elem` opts -> print . pretty $ unssa
+		  | otherwise -> print . pretty $ ast
+    {-
     contents <- getContents
     let parseOut = parseProgram contents
 --    either print doRoutinesCFG parseOut
-    either print doLinearSSA parseOut
+    --either print doLinearSSA parseOut
+    either print doSCC parseOut
+    -}
+
+doMain (ast, opts, back) | OptSCP `elem` opts = doSCP (ast, back)
+			 | OptSSA `elem` opts = doSSA (ast, back)
+			 | otherwise = doBack (ast, back)
+    
+doSCP (ast, back) = do
+    let ssa = p2ssa $ NonSSA ast
+    let (SSA cp) = constantPropagation ssa
+    doBack (cp, back)
+
+doSSA (ast, back) = do
+    let (SSA ssa) = p2ssa $ NonSSA ast
+    doBack (ssa, back)
+
+doBack (code, BackendCFG) = doBackCFG code
+doBack (code, BackendIR) = doBackIR code
+doBack (code, BackendSSA) = doBackSSA code
+
+doBackCFG code = doRoutinesCFG code
+doBackIR code = print . pretty $ code
+doBackSSA code = print . pretty $ code
+
+doSCC ast = do
+    let (SSA ssa) = p2ssa $ NonSSA ast
+    print . pretty $ ssa
+    newline
+    let (SSA cp) = constantPropagation (SSA ssa)
+    print . pretty $ cp
+    newline
+    let (NonSSA unssa) = ssa2p $ SSA cp
+    print . pretty $ unssa
 
 doLinearSSA ast = do
     let (SSA ssa) = p2ssa $ NonSSA ast
