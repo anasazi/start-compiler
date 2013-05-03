@@ -1,22 +1,5 @@
 module IR where
 
-{-
-data ConstOperand
-    = GP -- global pointer
-    | FP -- frame pointer
-    | C Integer -- constant
-    | R Integer -- register
-    | T String Integer -- type
-    | L Integer -- code location
-    deriving (Eq, Show)
-
-data VarOperand
-    = A String Integer -- global variable address offset
-    | SF String Integer -- class field address offset 
-    | DF String -- class field w/ unknown offset
-    | SV String Integer -- stack variable
-    deriving (Eq, Ord, Show)
--}
 data ConstOperand
     = GP -- global pointer
     | FP -- frame pointer

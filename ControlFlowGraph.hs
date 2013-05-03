@@ -53,25 +53,20 @@ routines :: Program -> [Routine]
 routines = map snd . routinesWithHeaders
 
 routinesWithHeaders :: Program -> [(Method, Routine)]
---routinesWithHeaders (Program _ ms _ is) = map getInBounds bounds
-routinesWithHeaders (Program _ ms _ is) = map f ms
+routinesWithHeaders (Program _ ms _ is) = map g ms  --map f ms
   where 
   entries = map rloc ms
-  getInstructions method = let m = rloc method in takeWhile (not . (`elem` (filter (/= m) entries)) . iloc) . dropWhile ((/= m) . iloc) $ is
-  f m = (m, getInstructions m)
-  --bounds = zip3 ms (map rloc ms) (drop 1 (map rloc ms) ++ [1 + iloc (last is)])
-  --getInBounds (m,a,b) = (m, filter (\i -> iloc i >= a && iloc i < b) is)
+  extract y = takeWhile (not . (`elem` (filter (/= y) entries)) . iloc) . dropWhile ((/= y) . iloc) $ is 
+  g m = (m, extract . rloc $ m)
   rloc = \(Method _ x _) -> x
   iloc = \(Instruction x _ _) -> x
 
 -- starting instruction is a leader
--- TODO not actually correct. entry point of routine may not be first instruction
 start = (\(Just (Instruction n _ _)) -> n) . find isEnter
   where isEnter (Instruction _ (U Enter _) _) = True
 	isEnter (Instruction _ (Z Entrypc) _) = True
+	isEnter (Instruction _ (Phi _ _) _) = True
         isEnter _ = False
---start ((Instruction n _ _):_) = n
---start [] = error "No starting instruction in an empty routine."
 
 -- the targets of jumps are leaders
 targets = map extract . filter keep
@@ -104,51 +99,44 @@ basicBlocks r = map getInstructions ls
 	getInstructions l = takeWhile (not . (`elem` (filter (/= l) ls)) . iloc) . dropWhile ((/= l) . iloc) $ r
 	iloc (Instruction n _ _) = n
 
-{-
-basicBlocks :: Routine -> [BasicBlock]
-basicBlocks r = reverse . map reverse . snd $ foldl f (ls,[]) r
-    where ls = leaders r
-	  f (ls,[]) i = (ls,[[i]])
-	  f ([l],b:bb) i = ([l],(i:b):bb)
-	  f (l1:l2:ls,b:bb) i@(Instruction n _ _) | l1 <= n && n < l2 = (l1:l2:ls,(i:b):bb)
-						  | n == l2 = (l2:ls,[i]:b:bb)
--}
-
 -- edges of the control flow graph where each block is represented by the location of its leader
 -- TODO need to add fallthrough in conditional branches
-buildEdgeList :: [BasicBlock] -> [(BasicBlock, Integer, [Integer])]
-buildEdgeList bbl = map (\bb -> (bb, label bb, jumps begin end bb)) bbl
+buildEdgeList :: Routine -> [BasicBlock] -> [(BasicBlock, Integer, [Integer])]
+buildEdgeList r bbl = map (\b -> (b, label b, (fall r b) ++ jumps b)) bbl
     where label = (\(Instruction x _ _) -> x) . head :: BasicBlock -> Integer
-	  end = (\(Instruction x _ _) -> x) . last . last $ bbl :: Integer
-	  begin = label . head $ bbl
+
+fall :: Routine -> BasicBlock -> [Integer]
+fall r b = if fallsOff b then fallthrough else []
+    where (Instruction end _ _) = last b
+	  iloc (Instruction n _ _) = n
+	  fallthrough = map iloc . take 1 . drop 1 . dropWhile ((/=end) . iloc) $ r 
+
+fallsOff bb = 
+    case last bb of
+	Instruction _ (U Br _) _ -> False
+	Instruction _ (U Ret _) _ -> False
+	otherwise -> True
+		
 
 -- labels of the blocks which a basic block exits to
-jumps :: Integer -> Integer -> BasicBlock -> [Integer]
-jumps minTarget maxTarget bb = nub . sort . (fall++) . map target . filter isJump $ bb
+jumps :: BasicBlock -> [Integer]
+jumps bb = nub . sort . map target . filter isJump $ bb
     where isJump (Instruction _ (U Br _) _) = True
-	  --isJump (Instruction _ (U Call (Const (L t))) _) = minTarget <= t && t <= maxTarget
 	  isJump (Instruction _ (B Blbc _ _) _) = True
 	  isJump (Instruction _ (B Blbs _ _) _) = True
 	  isJump _ = False
 	  target (Instruction _ (U Br (Const (L t))) _) = t
-	  --target (Instruction _ (U Call (Const (L t))) _) = t
 	  target (Instruction _ (B Blbc _ (Const (L t))) _) = t
 	  target (Instruction _ (B Blbs _ (Const (L t))) _) = t
-	  end@(Instruction n _ _) = last bb
-	  fall = if fallsOff && n+1 <= maxTarget then [n+1] else []
-	  fallsOff = case end of
-	    Instruction _ (U Br _) _ -> False
-	    Instruction _ (U Ret _) _ -> False
-	    otherwise -> True
 	
 -- build the control flow graph
 cfg :: Routine -> ControlFlowGraph
 cfg r = CFG . graphFromEdges $ el2
     where s = start r
-	  el1 = buildEdgeList . basicBlocks $ r
+	  el1 = buildEdgeList r . basicBlocks $ r
 	  (g,nlu,vlu) = graphFromEdges el1
 	  (Just sv) = vlu s
 	  rvs = sort $ reachable g sv
 	  rbbs = map ((\(n,_,_) -> n) . nlu) rvs
-	  el2 = buildEdgeList $ rbbs
+	  el2 = buildEdgeList r $ rbbs
 
