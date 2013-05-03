@@ -1,0 +1,9 @@
+#!/bin/bash
+for file in ./examples/*.start; do
+    echo "testing `basename $file`"
+    echo "  original:" 
+    timeout 10s dart ../start/bin/start.dart -r $file
+    file="./processed/`basename $file`"
+    echo "  processed:"
+    timeout 10s dart ../start/bin/start.dart -r $file
+done

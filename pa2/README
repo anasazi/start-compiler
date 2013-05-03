@@ -1,0 +1,8 @@
+Well, I'm out of time and late days, so here's my code as is.
+Currently it supports going in and out of SSA and making the return trip preserves behavior (the one exception is the primes example).
+I tried to implement the Sparse Conditional Constant algorithm, but it seems to be having trouble.
+I did not get to implement value numbering.
+
+The ./build script should build the compiler and name it ./main. If you have the Haskell Platform installed, then you should be fine.
+You can run the compiler with the requested options from ./main (i.e. ./main -opt=ssa -backend=ir).
+Currently only supported options are: opt={ssa,scp} and backend:{ir,cfg,ssa}.
