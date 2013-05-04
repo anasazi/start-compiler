@@ -1,19 +1,20 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ControlFlowGraph 
-{- ( Vertex
+( Vertex
 , CFG, buildCFG, linearize
 , entry, vertices, blocks, edges
 , succs, preds
 , reachable
-) -} where
+) where
 
 import InstructionSet
 import BasicBlock 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Maybe
-import Data.Array.IArray
+import Control.Arrow
+import Control.Monad
 
 newtype Vertex = Vertex Integer deriving (Eq, Ord, Enum, Show)
 data Edge = Jump Vertex | Fall Vertex deriving (Eq, Show)
@@ -42,10 +43,10 @@ buildCFG bs = reachable $ CFG entry blocks edges
   where 
   entry = Vertex 1
   vs = [entry..]
-  l2v = M.fromList $ zip (fmap label bs) vs
+  l2v = M.fromList $ concatMap (\(ls, v) -> [ (l,v) | l <- ls ]) $ zip (fmap locs bs) vs
   blocks = M.fromList $ zip vs bs
-  edges = M.mapWithKey (\v b -> S.fromList . catMaybes $ [f b v, g b]) blocks
-    where f b = if falls b then Just . succ else const Nothing
+  edges = M.map (\b -> S.fromList . catMaybes $ [f b, g b]) blocks
+    where f b = fmap (l2v M.!) (fallsTo b)
 	  g = fmap (l2v M.!) . jumpsTo
 
 -- remove any unreachable blocks
@@ -68,15 +69,26 @@ removeVertex (CFG entry blocks edges) v
 
 -- Given the CFG for a routine, organize the blocks in their linear order
 linearize :: InstructionSet i => CFG i -> [BasicBlock i]
+linearize cfg = map (blocks cfg M.!) ordering
+  where 
+    l2v = M.fromList . concatMap (\(v, b) -> [ (l,v) | l <- locs b ]) . M.toList . blocks $ cfg
+    fallsToV v = fmap (l2v M.!) $ fallsTo $ blocks cfg M.! v
+    next = map (id &&& fallsToV) (vertices cfg)
+    starts = map fst $ filter (\(v,mv') -> maybe False (==v) mv') next
+    line s = case join $ lookup s next of Nothing -> [] ; Just s' -> s : line s'
+    ordering = concatMap line (entry cfg : filter (/= entry cfg) starts)
+
+{-
 linearize cfg = fmap (blocks cfg M.!) ordering
   where 
     ordering = let x = entry cfg in x : follows x
     follows v = 
       let b = blocks cfg M.! v
-      in if falls b 
+      in if undefined --falls b 
 	 then case S.toList $ succs cfg v of 
 	    [x] -> x : follows x
 	    -- TODO does this check work? No. It's comparing a vertex id to a code location.
 	    [x,y] -> if Vertex (fromJust (jumpsTo (blocks cfg M.! v))) == x then y : follows y else x : follows x
 	  -- TODO can't assume vertices are numbered contiguously
 	  else let x = succ v in if x `elem` vertices cfg then x : follows x else []
+-}
