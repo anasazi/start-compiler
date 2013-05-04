@@ -12,6 +12,7 @@ import InstructionSet
 import BasicBlock 
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.List as L
 import Data.Maybe
 import Control.Arrow
 import Control.Monad
@@ -59,7 +60,7 @@ reachable cfg =
 	unreachable (v:vs) unmarked = unreachable vs' unmarked'
 	  where newlyMarked = succs cfg v `S.intersection` unmarked
 		vs' = S.toList newlyMarked ++ vs
-		unmarked' = unmarked `S.difference` newlyMarked
+		unmarked' = unmarked S.\\ newlyMarked
 
 removeVertex (CFG entry blocks edges) v
   | v == entry = error "cannot remove the entry vertex"
@@ -74,21 +75,6 @@ linearize cfg = map (blocks cfg M.!) ordering
     l2v = M.fromList . concatMap (\(v, b) -> [ (l,v) | l <- locs b ]) . M.toList . blocks $ cfg
     fallsToV v = fmap (l2v M.!) $ fallsTo $ blocks cfg M.! v
     next = map (id &&& fallsToV) (vertices cfg)
-    starts = map fst $ filter (\(v,mv') -> maybe False (==v) mv') next
-    line s = case join $ lookup s next of Nothing -> [] ; Just s' -> s : line s'
+    starts = uncurry (L.\\) . second catMaybes . unzip $ next
+    line s = case join $ lookup s next of Nothing -> [s] ; Just s' -> s : line s'
     ordering = concatMap line (entry cfg : filter (/= entry cfg) starts)
-
-{-
-linearize cfg = fmap (blocks cfg M.!) ordering
-  where 
-    ordering = let x = entry cfg in x : follows x
-    follows v = 
-      let b = blocks cfg M.! v
-      in if undefined --falls b 
-	 then case S.toList $ succs cfg v of 
-	    [x] -> x : follows x
-	    -- TODO does this check work? No. It's comparing a vertex id to a code location.
-	    [x,y] -> if Vertex (fromJust (jumpsTo (blocks cfg M.! v))) == x then y : follows y else x : follows x
-	  -- TODO can't assume vertices are numbered contiguously
-	  else let x = succ v in if x `elem` vertices cfg then x : follows x else []
--}
