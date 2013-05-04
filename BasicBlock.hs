@@ -12,6 +12,8 @@ import Data.List (nub, groupBy)
 import Data.Maybe (catMaybes, fromJust)
 import Control.Arrow
 
+import Debug.Trace
+
 {- A non-empty straight-line sequence of instructions without control 
  - flow between them. The first instruction (leader) is 
  - a) the entrence of a method/program or b) a jump target.
@@ -20,6 +22,7 @@ import Control.Arrow
  -}
 data BasicBlockExit = 
     Return
+  | Cliff
   | Fall Integer 
   | Jump Integer 
   | Branch Integer Integer 
@@ -57,23 +60,23 @@ toBlocks is = map wrap blockified
 	entrypc = [ loc i | i <- is, isMain i ]
 	calls = [ l | i <- is, isCall i, let Just l = callTarget i ]
 	jumps = catMaybes [ target i | i <- is, isJump i ]
-	falls = [ l | (i1,i2) <- zip is (drop 1 is), isJump i1, let l = loc i2 ]
+	falls = [ l | (i1,i2) <- zip is (drop 1 is), isJump i1 || isRet i1, let l = loc i2 ]
   blockified = f . dropWhile (not . isLeader) $ is
 	where
 	isLeader :: InstructionSet i => i -> Bool
 	isLeader = (`elem` leaders) . loc
 	f :: InstructionSet i => [i] -> [([i],Maybe Integer)]
-	f [] = [([], Nothing)]
+	f [] = [] --[([], Nothing)]
 	f (x:xs) = let (ys,zs) = break isLeader xs in ((x : ys), g zs) : f zs
 	    where
 	    g :: InstructionSet i => [i] -> Maybe Integer
 	    g [] = Nothing
 	    g (z:_) = Just $ loc z
-  wrap :: InstructionSet i => ([i], Maybe Integer) -> BasicBlock i
+  --wrap :: InstructionSet i => ([i], Maybe Integer) -> BasicBlock i
   wrap (bb, next) | isRet $ last bb = BB bb Return
 		  | isBranch $ last bb = BB bb $ Branch (fromJust . target . last $ bb) (fromJust next)
 		  | isJump $ last bb = BB bb $ Jump (fromJust . target . last $ bb)
-		  | canFall $ last bb = BB bb $ Fall (fromJust next)
+		  | canFall $ last bb = BB bb $ maybe Cliff Fall next --Fall (fromJust next)
 		  | otherwise = error "impossible block ending"
 
 -- Unwrap and concatenate the basic blocks
