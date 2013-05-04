@@ -64,17 +64,17 @@ toBlocks is = map wrap blockified
 	isLeader :: InstructionSet i => i -> Bool
 	isLeader = (`elem` leaders) . loc
 	f :: InstructionSet i => [i] -> [([i],Maybe Integer)]
-	f [] = [] --[([], Nothing)]
+	f [] = []
 	f (x:xs) = let (ys,zs) = break isLeader xs in ((x : ys), g zs) : f zs
 	    where
 	    g :: InstructionSet i => [i] -> Maybe Integer
 	    g [] = Nothing
 	    g (z:_) = Just $ loc z
   wrap :: InstructionSet i => ([i], Maybe Integer) -> BasicBlock i
-  wrap (bb, next) | isRet $ last bb = BB bb Return
-		  | isBranch $ last bb = BB bb $ Branch (fromJust . target . last $ bb) (fromJust next)
-		  | isJump $ last bb = BB bb $ Jump (fromJust . target . last $ bb)
-		  | canFall $ last bb = BB bb $ maybe Cliff Fall next 
+  wrap (bb, next) | isRet     $ last bb = BB bb Return
+		  | isBranch  $ last bb = BB bb $ Branch (fromJust . target . last $ bb) (fromJust next)
+		  | isJump    $ last bb = BB bb $ Jump (fromJust . target . last $ bb)
+		  | canFall   $ last bb = BB bb $ maybe Cliff Fall next 
 		  | otherwise = error "impossible block ending"
 
 -- Unwrap and concatenate the basic blocks
