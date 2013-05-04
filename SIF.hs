@@ -5,43 +5,43 @@ import Pretty
 import Text.PrettyPrint.HughesPJ
 import InstructionSet
 
-type SIFNum = Integer -- maybe switch to Int32
+type SIFNum = Integer 
 
-type SIFIdentifier = String -- name of a variable
-type SIFOffset = SIFNum -- offset of a variable
-type SIFSize = SIFNum -- size of a type
-type SIFLocation = SIFNum -- instruction number
+type SIFIdentifier = String
+type SIFOffset = SIFNum 
+type SIFSize = SIFNum 
+type SIFLocation = SIFNum 
 
 data SIFOperand = 
-    Global -- pointer to the beginning of the global address space. abbv = GP
-  | Frame -- pointer to the beginning of the stack frame of the current function. abbv = FP
-  | Constant SIFNum -- constant 32-bit integer
-  | Address SIFIdentifier SIFOffset -- starting address of a global variable as offset relative to GP
-  | StaticField SIFIdentifier SIFOffset -- known offset of a field of a class
-  | DynamicField SIFIdentifier -- unknown offset of a field of a class
-  | Stack SIFIdentifier SIFOffset -- stack variable with offset relative to FP. Negative = local; positive = parameter
-  | Register SIFLocation -- virtual register
-  | Type SIFIdentifier SIFSize -- represents the named type with its size
-  | Label SIFLocation -- a code location to jump to
+    Global
+  | Frame
+  | Constant SIFNum 
+  | Address SIFIdentifier SIFOffset 
+  | StaticField SIFIdentifier SIFOffset 
+  | DynamicField SIFIdentifier 
+  | Stack SIFIdentifier SIFOffset 
+  | Register SIFLocation 
+  | Type SIFIdentifier SIFSize 
+  | Label SIFLocation 
   deriving Show
 
 data SIFType = 
-    UnboxInt -- 32 bit unboxed integer
-  | UnboxBool -- unboxed boolean
-  | BoxInt -- 32 bit boxed integer
-  | BoxBool -- boxed boolean
-  | List -- fixed size list
-  | Class SIFIdentifier -- user defined class
-  | Dynamic -- dynamic type representing any boxed value. elements of a list are typed as dynamic
-  | Pointer SIFType -- pointer to something of another type
+    UnboxInt 
+  | UnboxBool
+  | BoxInt 
+  | BoxBool
+  | List 
+  | Class SIFIdentifier 
+  | Dynamic 
+  | Pointer SIFType 
   deriving Show
 
 data SIFOpcode = 
-    SideEffect SIFSideEffect -- instructions that only have side effects and produce no value
-  | Unary SIFUnary SIFOperand {- input -}  SIFType {- return type -} -- unary value producing instructions
-  | Binary SIFBinary SIFOperand {- left input -} SIFOperand {- right input -} SIFType {- return type -} -- binary value producing instructions
-  | Branch SIFBranch SIFOperand {- target location -} -- instructions that change the flow of control
-  | NOP -- nothing
+    SideEffect SIFSideEffect 
+  | Unary SIFUnary SIFOperand {- input -}  SIFType {- return type -} 
+  | Binary SIFBinary SIFOperand {- left input -} SIFOperand {- right input -} SIFType {- return type -} 
+  | Branch SIFBranch SIFOperand {- target location -} 
+  | NOP 
   deriving Show
 
 data SIFSideEffect = 
@@ -51,11 +51,11 @@ data SIFSideEffect =
   | Checkbounds SIFOperand {- list -} SIFOperand {- index -}
   | StoreDynamic SIFOperand {- value -} SIFOperand {- location -} SIFOperand {- field -}
   | Write SIFOperand {- value -}
-  | Newline -- newline
-  | Enter SIFOperand {- bytes to allocate for local variables -} -- entry point for functions
+  | Newline 
+  | Enter SIFOperand {- bytes to allocate for local variables -} 
   | Ret SIFOperand {- bytes to pop for formal parameters -}
   | Param SIFOperand {- value to push onto stack -}
-  | Entrypc -- entry point of main function
+  | Entrypc
   deriving Show
 
 data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving Show
@@ -64,24 +64,30 @@ data SIFBranch = Jump | IfZero SIFOperand {- test -} | IfSet SIFOperand {- test 
 
 type SIFVarDecl = (SIFIdentifier, SIFSize, SIFType)
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
-data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry instruction location -} [SIFVarDecl] deriving Show
+data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry location -} [SIFVarDecl] deriving Show
 data SIFGlobalDecl = SIFGlobalDecl SIFIdentifier SIFOffset {- offset from GP -} SIFType deriving Show
 data SIFInstruction = SIFInstruction SIFLocation SIFOpcode  deriving Show
 data SIFProgram = SIFProgram [SIFTypeDecl] [SIFMethodDecl] [SIFGlobalDecl] [SIFInstruction] deriving Show
 
 instance InstructionSet SIFInstruction where
-  idnum (SIFInstruction l _) = l
-  isEnter (SIFInstruction _ o) = case o of
-    SideEffect (Enter _) -> True
-    SideEffect Entrypc -> True
-    _ -> False
+  loc (SIFInstruction l _) = l
+
   isJump (SIFInstruction _ o) = case o of
     Branch _ _ -> True
     SideEffect (Ret _) -> True
     _ -> False
-  target (SIFInstruction _ o) = case o of
-    Branch _ (Label l) -> Just l
-    _ -> Nothing
+
+  jumpTarget (SIFInstruction _ (Branch _ (Label l))) = Just l
+  jumpTarget _ = Nothing
+
+  isCall (SIFInstruction _ (SideEffect (Call _))) = True
+  isCall _ = False
+
+  callTarget (SIFInstruction _ (SideEffect (Call (Label l)))) = Just l
+  callTarget _ = Nothing
+
+  isMain (SIFInstruction _ (SideEffect Entrypc)) = True
+  isMain _ = False
 
 instance Pretty SIFOperand where
   pretty operand = case operand of
