@@ -12,8 +12,6 @@ import Data.List (nub, groupBy)
 import Data.Maybe (catMaybes, fromJust)
 import Control.Arrow
 
-import Debug.Trace
-
 {- A non-empty straight-line sequence of instructions without control 
  - flow between them. The first instruction (leader) is 
  - a) the entrence of a method/program or b) a jump target.
@@ -72,11 +70,11 @@ toBlocks is = map wrap blockified
 	    g :: InstructionSet i => [i] -> Maybe Integer
 	    g [] = Nothing
 	    g (z:_) = Just $ loc z
-  --wrap :: InstructionSet i => ([i], Maybe Integer) -> BasicBlock i
+  wrap :: InstructionSet i => ([i], Maybe Integer) -> BasicBlock i
   wrap (bb, next) | isRet $ last bb = BB bb Return
 		  | isBranch $ last bb = BB bb $ Branch (fromJust . target . last $ bb) (fromJust next)
 		  | isJump $ last bb = BB bb $ Jump (fromJust . target . last $ bb)
-		  | canFall $ last bb = BB bb $ maybe Cliff Fall next --Fall (fromJust next)
+		  | canFall $ last bb = BB bb $ maybe Cliff Fall next 
 		  | otherwise = error "impossible block ending"
 
 -- Unwrap and concatenate the basic blocks

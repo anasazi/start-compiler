@@ -14,7 +14,6 @@ type Routines i = Map SIFMethodDecl i
 
 mloc (SIFMethodDecl _ loc _) = loc
 
--- cannot assume that method locations are specified in proper order
 routines :: SIFProgram -> Routines [BasicBlock SIFInstruction]
 routines (SIFProgram _ ms _ is) = fromList [ (m, b) | m <- ms, b <- grouper bs, mloc m == loc (leader (head b)) ]
   where bs = toBlocks is :: [BasicBlock SIFInstruction]
