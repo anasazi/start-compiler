@@ -74,11 +74,10 @@ instance InstructionSet SIFInstruction where
 
   isJump (SIFInstruction _ o) = case o of
     Branch _ _ -> True
-    SideEffect (Ret _) -> True
     _ -> False
 
-  jumpTarget (SIFInstruction _ (Branch _ (Label l))) = Just l
-  jumpTarget _ = Nothing
+  target (SIFInstruction _ (Branch _ (Label l))) = Just l
+  target _ = Nothing
 
   canFall (SIFInstruction _ (Branch Jump _)) = False
   canFall (SIFInstruction _ (SideEffect (Ret _))) = False
@@ -92,6 +91,9 @@ instance InstructionSet SIFInstruction where
 
   isMain (SIFInstruction _ (SideEffect Entrypc)) = True
   isMain _ = False
+
+  isRet (SIFInstruction _ (SideEffect (Ret _))) = True
+  isRet _ = False
 
   nop n = SIFInstruction n NOP
 
