@@ -6,22 +6,17 @@ import ControlFlowGraph
 import BasicBlock
 import Data.Map
 import Control.Monad
+import Control.Arrow
 
 main = do
   input <- getContents
   let parsed = readProgram input
   either print printCFGs parsed
---  either print (print . pretty) parsed
 
-printCFGs ast = do
+printCFGs ast@(SIFProgram ts ms gs is)  = do
   let rs = routines ast
-  let cfgs = toList $ fmap buildCFG rs
-  forM_ cfgs (\(m, cfg) -> 
-    do print m
-       print $ entry cfg
-       print $ vertices cfg
-       print $ edges cfg
-       print $ blocks cfg
-       let linbs = linearize cfg
-       print . pretty . Vertical $ fromBlocks linbs
-       putStrLn "")
+  let cfgs = fmap buildCFG rs
+  let rs' = fmap (fromBlocks . linearize) cfgs
+  let (ms', is') = second concat . unzip $ toList rs'
+  let ast' = SIFProgram ts ms' gs is'
+  print . pretty $ ast'
