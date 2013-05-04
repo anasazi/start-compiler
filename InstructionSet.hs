@@ -9,7 +9,7 @@ class InstructionSet a where
   isJump :: a -> Bool
   -- is conditional branch?
   isBranch :: a -> Bool
-  isBranch = isJump &&& canFall >>> uncurry (||)
+  isBranch = isJump &&& canFall >>> uncurry (&&)
   -- the target location of a jump instruction
   target :: a -> Maybe Integer
   -- can this instruction not make a control flow jump?
