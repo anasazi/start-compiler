@@ -36,37 +36,37 @@ data SIFType =
   | Pointer SIFType 
   deriving (Eq, Ord, Show)
 
-data SIFOpcode = 
-    SideEffect SIFSideEffect 
-  | Unary SIFUnary SIFOperand {- input -}  SIFType {- return type -} 
-  | Binary SIFBinary SIFOperand {- left input -} SIFOperand {- right input -} SIFType {- return type -} 
-  | Branch SIFBranch SIFOperand {- target location -} 
+data SIFOpcode a = 
+    SideEffect (SIFSideEffect a)
+  | Unary SIFUnary a {- input -}  SIFType {- return type -} 
+  | Binary SIFBinary a {- left input -} a {- right input -} SIFType {- return type -} 
+  | Branch (SIFBranch a) a {- target location -} 
   | NOP 
   deriving Show
 
-data SIFSideEffect = 
-    Call SIFOperand {- location -}
-  | Store SIFOperand {- value -} SIFOperand {- location -}
-  | Move SIFOperand {- value -} SIFOperand {- location -}
-  | Checkbounds SIFOperand {- list -} SIFOperand {- index -}
-  | StoreDynamic SIFOperand {- value -} SIFOperand {- location -} SIFOperand {- field -}
-  | Write SIFOperand {- value -}
+data SIFSideEffect a = 
+    Call a {- location -}
+  | Store a {- value -} a {- location -}
+  | Move a {- value -} a {- location -}
+  | Checkbounds a {- list -} a {- index -}
+  | StoreDynamic a {- value -} a {- location -} a {- field -}
+  | Write a {- value -}
   | Newline 
-  | Enter SIFOperand {- bytes to allocate for local variables -} 
-  | Ret SIFOperand {- bytes to pop for formal parameters -}
-  | Param SIFOperand {- value to push onto stack -}
+  | Enter a {- bytes to allocate for local variables -} 
+  | Ret a {- bytes to pop for formal parameters -}
+  | Param a {- value to push onto stack -}
   | Entrypc
   deriving Show
 
 data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving Show
 data SIFBinary = Add | Sub | Mul | Div | Mod | Equal | LessEqual | Less | Istype | Checktype | LoadDyanmic deriving Show
-data SIFBranch = Jump | IfZero SIFOperand {- test -} | IfSet SIFOperand {- test -} deriving Show
+data SIFBranch a = Jump | IfZero a {- test -} | IfSet a {- test -} deriving Show
 
 data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving (Eq, Ord, Show)
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
 data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry location -} [SIFVarDecl] deriving (Eq, Ord, Show)
 data SIFGlobalDecl = SIFGlobalDecl SIFIdentifier SIFOffset {- offset from GP -} SIFType deriving Show
-data SIFInstruction = SIFInstruction SIFLocation SIFOpcode  deriving Show
+data SIFInstruction = SIFInstruction SIFLocation (SIFOpcode SIFOperand)  deriving Show
 data SIFProgram = SIFProgram [SIFTypeDecl] [SIFMethodDecl] [SIFGlobalDecl] [SIFInstruction] deriving Show
 
 instance InstructionSet SIFInstruction where
@@ -121,7 +121,7 @@ instance Pretty SIFType where
     Dynamic -> text "dynamic"
     Pointer t -> pretty t <> char '*'
 
-instance Pretty SIFSideEffect where
+instance Pretty a => Pretty (SIFSideEffect a) where
   pretty se = case se of
     Call l -> text "call" <+> pretty l
     Store v l -> text "store" <+> pretty v <+> pretty l
@@ -158,13 +158,13 @@ instance Pretty SIFBinary where
     Checktype -> text "checktype"
     LoadDyanmic -> text "lddynamic"
 
-instance Pretty SIFBranch where
+instance Pretty a => Pretty (SIFBranch a) where
   pretty br = case br of
     Jump -> text "br"
     IfZero t -> text "blbc" <+> pretty t
     IfSet t -> text "blbs" <+> pretty t
 
-instance Pretty SIFOpcode where
+instance Pretty a => Pretty (SIFOpcode a) where 
   pretty opc = case opc of
     SideEffect se -> pretty se
     Unary uop i t -> pretty uop <+> pretty i <+> colon <> pretty t
