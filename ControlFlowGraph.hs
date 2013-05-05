@@ -1,12 +1,13 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ControlFlowGraph 
-( Vertex, Edge(..)
+( Vertex(..), Edge(..)
 , CFG, buildCFG, linearize
 , entry, vertices, blocks, edges
 , succs, preds
 , reachable
 , dominators, idominators, dominanceFrontier
+, mapBlocks
 ) where
 
 import InstructionSet
@@ -31,10 +32,13 @@ data CFG i = CFG
 instance Functor CFG where
   fmap f (CFG entry blocks edges) = CFG entry (fmap (fmap f) blocks) edges
 
+mapBlocks f (CFG entry blocks edges) = CFG entry (M.mapWithKey f blocks) edges
+
 vertices = M.keys . blocks
 
-goesTo (Leap x) = x
-goesTo (Fall x) = x
+--goesTo (Leap x) = x
+--goesTo (Fall x) = x
+goesTo = edge id id
 
 edge jump _ (Leap x) = jump x
 edge _ fall (Fall x) = fall x
