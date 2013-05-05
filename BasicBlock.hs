@@ -1,9 +1,10 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 module BasicBlock 
 ( BasicBlock, empty
-, leader, end
+, leader, end, body
 , fallsTo, jumpsTo, label, locs
-, toBlocks, fromBlocks
+, toBlocks, fromBlocks, fromBlock
+, validateBlock, modifyBlock
 ) where
 
 import InstructionSet
@@ -30,9 +31,14 @@ data BasicBlock i = BB [i] BasicBlockExit deriving (Eq, Show)
 instance Functor BasicBlock where
   fmap f (BB is ex) = BB (fmap f is) ex
 
+modifyBlock f (BB is ex) = BB (f is) ex
+
+validateBlock b@(BB is ex) = [b] == toBlocks is
+
 leader (BB is _) = head is
 end (BB is _) = last is
 exit (BB _ ex) = ex
+body (BB is _) = is
 
 -- can this block fall off the end?
 fallsTo (BB _ (Fall x)) = Just x
@@ -78,5 +84,8 @@ toBlocks is = map wrap blockified
 		  | otherwise = error "impossible block ending"
 
 -- Unwrap and concatenate the basic blocks
+fromBlock (BB is _) = is
+
 fromBlocks :: [BasicBlock i] -> [i]
-fromBlocks = concatMap (\(BB is _) -> is)
+fromBlocks = concatMap fromBlock
+
