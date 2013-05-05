@@ -6,7 +6,7 @@ module ControlFlowGraph
 , entry, vertices, blocks, edges
 , succs, preds
 , reachable
-, dominators, idominators
+, dominators, idominators, dominanceFrontier
 ) where
 
 import InstructionSet
@@ -21,7 +21,7 @@ import Control.Applicative
 import Data.Array
 
 newtype Vertex = Vertex Integer deriving (Eq, Ord, Enum, Show)
-data Edge = Jump Vertex | Fall Vertex deriving (Eq, Ord, Show)
+data Edge = Leap Vertex | Fall Vertex deriving (Eq, Ord, Show)
 data CFG i = CFG 
   { entry :: Vertex
   , blocks :: M.Map Vertex (BasicBlock i)
@@ -33,10 +33,10 @@ instance Functor CFG where
 
 vertices = M.keys . blocks
 
-goesTo (Jump x) = x
+goesTo (Leap x) = x
 goesTo (Fall x) = x
 
-edge jump _ (Jump x) = jump x
+edge jump _ (Leap x) = jump x
 edge _ fall (Fall x) = fall x
 
 succs :: CFG i -> Vertex -> S.Set Edge
@@ -46,7 +46,7 @@ preds :: CFG i -> Vertex -> S.Set Edge
 preds cfg v = S.fromList . swapAround . trimDown . predEntries $ (edges cfg)
   where predEntries = M.filter (S.member v . S.map goesTo)
 	trimDown = M.map (S.filter ((==v) . goesTo))
-	swapAround = fmap (\(k,v) -> edge (const $ Jump k) (const $ Fall k) (head . S.toList $ v)) . M.toList
+	swapAround = fmap (\(k,v) -> edge (const $ Leap k) (const $ Fall k) (head . S.toList $ v)) . M.toList
 
 fixEq :: Eq a => (a -> a) -> a -> a
 fixEq f v | v' == v   = v
@@ -75,6 +75,16 @@ idominators cfg =
       idoms = M.mapWithKey (\v ds -> S.delete v ds) $ doms
   in M.map (\ids -> head' . M.keys . M.filter (==ids) $ doms) idoms
 
+dominanceFrontier :: CFG i -> M.Map Vertex (S.Set Vertex)
+dominanceFrontier cfg =
+  let doms = dominators cfg
+      nodes = vertices cfg
+      predecessors = M.fromList $ fmap (id &&& preds cfg >>> second (S.map goesTo)) nodes
+      strictDom b y = b /= y && b `S.member` (doms M.! y)
+      predDoms y = S.unions . fmap (doms M.!) . S.toList $ (predecessors M.! y)
+      frontier b = S.fromList $ filter (\y -> not (b `strictDom` y) && b `S.member` predDoms y) nodes
+  in M.fromList $ fmap (id &&& frontier) nodes
+
 -- Given the basic blocks for a routine, build the CFG
 buildCFG :: (Show i, InstructionSet i) => [BasicBlock i] -> CFG i
 buildCFG bs = reachable $ CFG entry blocks edges
@@ -85,7 +95,7 @@ buildCFG bs = reachable $ CFG entry blocks edges
   blocks = M.fromList $ zip vs bs
   edges = M.map (\b -> S.fromList . catMaybes $ [f b, g b]) blocks
     where f b = (Fall . (l2v M.!)) <$> fallsTo b
-	  g = fmap (Jump . (l2v M.!)) . jumpsTo
+	  g = fmap (Leap . (l2v M.!)) . jumpsTo
 
 -- remove any unreachable blocks
 reachable :: CFG i -> CFG i
@@ -103,7 +113,7 @@ removeVertex (CFG entry blocks edges) v
   | v == entry = error "cannot remove the entry vertex"
   | otherwise = CFG entry blocks' edges'
       where blocks' = M.delete v blocks
-	    edges' = M.map (S.delete (Jump v) . S.delete (Fall v)) . M.delete v $ edges
+	    edges' = M.map (S.delete (Leap v) . S.delete (Fall v)) . M.delete v $ edges
 
 -- Given the CFG for a routine, organize the blocks in their linear order
 linearize :: InstructionSet i => CFG i -> [BasicBlock i]
