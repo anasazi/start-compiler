@@ -44,7 +44,7 @@ register      = Register <$> parens location
 typeuse	      = Type <$> (identiferSuffix $ string "_type#") <*> size
 codelabel     = Label <$> brackets location
 
-operand = choice (map try [global, frame, constant, address, staticField, dynamicField, stack, register, typeuse, codelabel]) <?> "operand"
+operand = choice (map try [global, frame, constant, address, staticField, dynamicField, register, typeuse, stack, codelabel]) <?> "operand"
 
 -- SIF types
 unboxInt    = string "int" >> return UnboxInt
