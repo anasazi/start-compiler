@@ -55,7 +55,9 @@ instance Pretty TOp where
     pretty = text . map toLower . show
 
 instance Pretty Opcode where
-    pretty (Phi v subs) = text "phi" <+> (hsep . map pretty . map (\(_,s) -> SSAVarOperand (v, s)) $ subs)
+    --pretty (Phi v subs) = text "phi" <+> (hsep . map pretty . map (\(_,s) -> SSAVarOperand (v, s)) $ subs)
+    -- TODO remove this debug printing
+    pretty (Phi v subs) = text "phi" <+> (hsep . map (\(n,s) -> parens (integer n <> comma <> pretty (SSAVarOperand (v, s)))) $ subs)
     pretty (Z z) = pretty z
     pretty (U u x) = pretty u <+> pretty x
     pretty (B b x y) = pretty b <+> pretty x <+> pretty y

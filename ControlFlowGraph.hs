@@ -4,13 +4,13 @@ module ControlFlowGraph
 , ControlFlowGraph
 , cfgGraph, cfgNodeLU, cfgVertexLU, cfg
 , succs, preds
-, routines
+, routines, routinesWithHeaders
 , graphToMap, mapToGraph, ControlFlowMap
 ) where
 
 import IR
 import Data.Graph
-import Data.List (sort, nub, mapAccumL, (\\))
+import Data.List (find, sort, nub, mapAccumL, (\\))
 import qualified Data.Map as M
 
 type Routine = [Instruction]
@@ -50,17 +50,28 @@ preds (CFG (g,nlu,vlu)) k = extract . parents . edges $ g
 	  extract = map (key . nlu . fst)
 
 routines :: Program -> [Routine]
-routines (Program _ ms _ is) = map getInBounds bounds
+routines = map snd . routinesWithHeaders
+
+routinesWithHeaders :: Program -> [(Method, Routine)]
+--routinesWithHeaders (Program _ ms _ is) = map getInBounds bounds
+routinesWithHeaders (Program _ ms _ is) = map f ms
   where 
-  bounds = zip (map rloc ms) (drop 1 (map rloc ms) ++ [1 + iloc (last is)])
-  getInBounds (a,b) = filter (\i -> iloc i >= a && iloc i < b) is
+  entries = map rloc ms
+  getInstructions method = let m = rloc method in takeWhile (not . (`elem` (filter (/= m) entries)) . iloc) . dropWhile ((/= m) . iloc) $ is
+  f m = (m, getInstructions m)
+  --bounds = zip3 ms (map rloc ms) (drop 1 (map rloc ms) ++ [1 + iloc (last is)])
+  --getInBounds (m,a,b) = (m, filter (\i -> iloc i >= a && iloc i < b) is)
   rloc = \(Method _ x _) -> x
   iloc = \(Instruction x _ _) -> x
 
 -- starting instruction is a leader
 -- TODO not actually correct. entry point of routine may not be first instruction
-start ((Instruction n _ _):_) = n
-start [] = error "No starting instruction in an empty routine."
+start = (\(Just (Instruction n _ _)) -> n) . find isEnter
+  where isEnter (Instruction _ (U Enter _) _) = True
+	isEnter (Instruction _ (Z Entrypc) _) = True
+        isEnter _ = False
+--start ((Instruction n _ _):_) = n
+--start [] = error "No starting instruction in an empty routine."
 
 -- the targets of jumps are leaders
 targets = map extract . filter keep
@@ -85,8 +96,15 @@ followers = map follower . filter (jump . fst) . pairup
 -- sorted list of unique leaders
 leaders :: Routine -> [Integer]
 -- TODO shouldn't sort since instructions may not be in order
-leaders r = nub . sort $ start r : targets r ++ followers r
+leaders r = nub $ start r : targets r ++ followers r
 
+basicBlocks :: Routine -> [BasicBlock]
+basicBlocks r = map getInstructions ls
+  where ls = leaders r
+	getInstructions l = takeWhile (not . (`elem` (filter (/= l) ls)) . iloc) . dropWhile ((/= l) . iloc) $ r
+	iloc (Instruction n _ _) = n
+
+{-
 basicBlocks :: Routine -> [BasicBlock]
 basicBlocks r = reverse . map reverse . snd $ foldl f (ls,[]) r
     where ls = leaders r
@@ -94,6 +112,7 @@ basicBlocks r = reverse . map reverse . snd $ foldl f (ls,[]) r
 	  f ([l],b:bb) i = ([l],(i:b):bb)
 	  f (l1:l2:ls,b:bb) i@(Instruction n _ _) | l1 <= n && n < l2 = (l1:l2:ls,(i:b):bb)
 						  | n == l2 = (l2:ls,[i]:b:bb)
+-}
 
 -- edges of the control flow graph where each block is represented by the location of its leader
 -- TODO need to add fallthrough in conditional branches
@@ -107,12 +126,12 @@ buildEdgeList bbl = map (\bb -> (bb, label bb, jumps begin end bb)) bbl
 jumps :: Integer -> Integer -> BasicBlock -> [Integer]
 jumps minTarget maxTarget bb = nub . sort . (fall++) . map target . filter isJump $ bb
     where isJump (Instruction _ (U Br _) _) = True
-	  isJump (Instruction _ (U Call (Const (L t))) _) = minTarget <= t && t <= maxTarget
+	  --isJump (Instruction _ (U Call (Const (L t))) _) = minTarget <= t && t <= maxTarget
 	  isJump (Instruction _ (B Blbc _ _) _) = True
 	  isJump (Instruction _ (B Blbs _ _) _) = True
 	  isJump _ = False
 	  target (Instruction _ (U Br (Const (L t))) _) = t
-	  target (Instruction _ (U Call (Const (L t))) _) = t
+	  --target (Instruction _ (U Call (Const (L t))) _) = t
 	  target (Instruction _ (B Blbc _ (Const (L t))) _) = t
 	  target (Instruction _ (B Blbs _ (Const (L t))) _) = t
 	  end@(Instruction n _ _) = last bb

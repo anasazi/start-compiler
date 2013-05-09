@@ -12,18 +12,24 @@ newline = putStr "\n"
 main = do 
     contents <- getContents
     let parseOut = parseProgram contents
+    either print doRoutinesCFG parseOut
     either print doLinearSSA parseOut
-    --either print doRoutinesCFG parseOut
 
 doLinearSSA ast = do
-    print . pretty $ ast
-    newline
+    let (SSA ssa) = p2ssa $ NonSSA ast
+    print . pretty $ ssa
+{-
     let (SSA cfgs) = programToSSA (NonSSA ast)
     let ssaCode = concatMap (linearize . graphToMap) cfgs
     print . pretty $ ssaCode
+-}
     newline
+    let (NonSSA unssa) = ssa2p $ SSA ssa
+    print . pretty $ unssa
+{-
     let (NonSSA unssacode) = programFromSSA ast (SSA cfgs)
     print . pretty $ unssacode
+-}
 
 doRoutinesCFG ast = mapM_ processRoutine $ routines ast
 
