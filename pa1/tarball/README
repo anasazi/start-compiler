@@ -1,0 +1,8 @@
+To build the source, you need GHC and Parsec at minimum.
+If you use the Haskell Platform, then you have everything necessary.
+Run ./build to build the source and produce ./dominators.
+
+./dominators reads in a .start file from STDIN and dumps the output to STDOUT.
+I keep the examples in IR form, so I normally use it like this: ./dominators <example.start
+If you keep the examples in Start form, you can just pipe it together with the start compiler:
+dart bin/start.dart -c examples/link.dart | ./dominators
