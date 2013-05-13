@@ -87,7 +87,7 @@ doBack (code, BackendCFG) = doBackCFG code
 doBack (code, BackendIR) = doBackIR code
 doBack (code, BackendSSA) = doBackSSA code
 
-doBackCFG code = doRoutinesCFG code
+doBackCFG = doRoutinesCFG
 doBackIR code = print . pretty $ code
 doBackSSA code = print . pretty $ code
 

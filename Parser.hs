@@ -4,13 +4,14 @@ module Parser (parseProgram) where
 
 import IR
 import Text.Parsec
+import Control.Monad
 
-parseProgram contents = parse program "" contents
+parseProgram = parse program "" 
 
 type Parser = Parsec String ()
 
 sign = option 1 (char '-' >> return (-1))
-integer = (sign >>= \s -> many1 digit >>= \n -> return (s * (read n))) <?> "integer"
+integer = (sign >>= \s -> many1 digit >>= \n -> return (s * read n)) <?> "integer"
 parens = between (char '(') (char ')')
 brackets = between (char '[') (char ']')
 
@@ -29,7 +30,7 @@ identifier = (start >>= \a -> many rest >>= \as -> return $ a:as) <?> "identifie
 operand = choice
     [ try $ string "GP" >> return (Const GP)
     , try $ string "FP" >> return (Const FP)
-    , integer >>= return . Const . C
+    , liftM (Const . C) integer
     {-
     , try $ identifierWithSuf (string "_base#") >>= \s -> integer >>= \i -> return $ Var (A s i)
     , try $ identifierWithSuf (string "_offset#") >>= \s -> integer >>= \i -> return $ Var (SF s i)
@@ -41,8 +42,8 @@ operand = choice
 
     , try $ identifierWithSuf (string "_type#") >>= \t -> integer >>= \i -> return . Const $ T t i
     , try $ identifier >>= \s -> hash >> integer >>= \i -> return $ Var (SV s i) 
-    , parens integer >>= return . Const . R
-    , brackets integer >>= return . Const . L
+    , liftM (Const . R) (parens integer)
+    , liftM (Const . L) (brackets integer)
     ] <?> "operand"
 
 zop = choice
@@ -90,11 +91,13 @@ top = choice
     ]
 
 opcode = choice
-    [ try $ zop >>= return . Z
-    , try $ uop >>= \u -> aspace >> operand >>= return . U u 
-    , try $ bop >>= \b -> aspace >> operand >>= \a -> aspace >> operand >>= return . B b a
-    , top >>= \t -> aspace >> operand >>= \a -> aspace >> operand >>= \b -> 
-		    aspace >> operand >>= return . Ter t a b
+    [ try $ liftM Z zop 
+    , try $ uop >>= \u -> liftM (U u) (aspace >> operand)
+    , try $ bop >>= \b -> aspace >> operand 
+		>>= \a -> liftM (B b a) (aspace >> operand)
+    , top >>= \t -> aspace >> operand 
+	  >>= \a -> aspace >> operand 
+	  >>= \b -> liftM (Ter t a b) (aspace >> operand)
     ] <?> "opcode"
 
 typ = (choice
@@ -104,10 +107,10 @@ typ = (choice
     , try $ string "Boolean" >> return BBool
     , try $ string "List" >> return List
     , try $ string "dynamic" >> return Dynamic
-    , try $ identifier >>= return . Class
+    , try $ liftM Class identifier
     ] >>= \t -> 
     many (char '*') >>= \stars ->
-    return $ foldl1 (.) (id:(map (const Pointer) stars)) t)
+    return $ foldl1 (.) (id : map (const Pointer) stars) t)
     <?> "type"
 
 var = (identifier >>= \v -> hash >> integer >>= \i -> colon >> typ >>= \t -> return (v,i,t)) <?> "var"

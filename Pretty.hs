@@ -35,7 +35,7 @@ instance Pretty SSAVarOperand where
     pretty (SSAVarOperand ((SF v _),s)) = text (v ++ "_offset$") <> integer s
     pretty (SSAVarOperand ((DF v),s))   = text (v ++ "_offset$") <> integer s
 -}
-    pretty (SSAVarOperand ((SV v _),s)) = text (v ++ "$") <> integer s
+    pretty (SSAVarOperand (SV v _,s)) = text (v ++ "$") <> integer s
 
 instance Pretty Operand where
     pretty (Const co) = pretty co

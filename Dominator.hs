@@ -10,6 +10,7 @@ import Data.Graph
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List (sort)
+import Data.Maybe
 
 newtype Loc = Loc Integer deriving (Eq, Ord, Show)
 data RPO = RPO Integer Loc deriving (Eq, Show)
@@ -62,7 +63,7 @@ newDomsForLoc (RPOPred pred) ds@(Doms doms) b = update . collapse . sort . proce
 	  collapse [] = error "There should always be a processed predecessor." 
 	  collapse (r:rs) = foldl f (Just r) rs
 	  f ma b = ma >>= \a -> return $ intersect ds b a
-	  processedOnly = filter (\x -> Nothing /= (doms M.! x))
+	  processedOnly = filter (\x -> isJust (doms M.! x))
 
 newDoms :: ReversePostOrder -> RPOPred -> Doms -> Doms
 newDoms rpo@(ReversePostOrder order) pred doms = foldl f doms order

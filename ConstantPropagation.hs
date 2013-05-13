@@ -108,7 +108,7 @@ condBrJump (Instruction _ (B Blbs _ (Const (L x))) _) = x
 
 hasLocalOperand v s (Instruction _ op _) =
     case op of
-	Phi x subs -> x == v && s `elem` (map snd subs)
+	Phi x subs -> x == v && s `elem` map snd subs
 	U _ (SSAVar v s) -> True
 	B _ (SSAVar v s) _ -> True
 	B Move _ (SSAVar v s) -> False -- this is a definition
@@ -135,14 +135,14 @@ eval :: Routine -> Value -> Executable -> Instruction -> LatticeCell
 --eval r val ex var =
 eval r val ex inst =
     let --inst = def r var 
-	me = Node . head . M.keys . M.filter (any (== inst) . fst) . graphToMap . cfg $ r
+	me = Node . head . M.keys . M.filter (elem inst . fst) . graphToMap . cfg $ r
     in
     --case op $ def r var of
     case op inst of
 	-- Definition of a SSA local var case
 	B Move src _ -> valof src
 	-- Definitions of registers
-	Phi v ss -> foldl meet Top . map (({-trace "eval"-} val M.!) . Local v . snd) . filter ((exec ex) . ((,me)) . Node . fst) $ ss
+	Phi v ss -> foldl meet Top . map (({-trace "eval"-} val M.!) . Local v . snd) . filter (exec ex . (,me) . Node . fst) $ ss
 	U Neg s -> case valof s of Bot -> Bot ; Top -> Top ; CI x -> CI $ negate x
 	B Add a b -> case (valof a, valof b) of (CI x, CI y) -> CI $ x + y ; (x,y) -> meet x y
 	B Sub a b -> case (valof a, valof b) of (CI x, CI y) -> CI $ x - y ; (x,y) -> meet x y
@@ -164,8 +164,8 @@ eval r val ex inst =
 	    case operand of
 		-- references to variables are resolved by just looking it up
 		-- the (Var ...) case should never occur while in SSA form
-		Const (R src)	    -> {-trace "valof - R"-} val M.! (Register src)
-		SSAVar srcv srcs    -> {-trace "valof - SSAVar"-} val M.! (Local srcv srcs)
+		Const (R src)	    -> {-trace "valof - R"-} val M.! Register src
+		SSAVar srcv srcs    -> {-trace "valof - SSAVar"-} val M.! Local srcv srcs
 		-- copying a constant just results in that constant
 		Const (C x)	-> CI x
 		Const (A _ x)	-> CI x
@@ -208,7 +208,7 @@ scc r = cleanup r $ scc' r cfm fw2 ssaw1 val1 ex0
     cfm = graphToMap . cfg $ r
     start = Node . fst . head . filter (any isEnter . fst . snd) . M.toList $ cfm
     suc = let (Node x) = start in map Node . snd $ {-trace "scc"-} cfm M.! x
-    val0 = M.fromList . map (,Top) $ (params r) ++ (variables r)
+    val0 = M.fromList . map (,Top) $ params r ++ variables r
     ex0 = M.fromList . map (,False) . edges $ r
     (val1, ssaw1, fw1) = visitBlock r cfm val0 ex0 start False
     fw2 = if length suc == 1 then map (start,) suc else []
@@ -266,7 +266,7 @@ deadCodeElimination r = sweep r mark
 	    Ter _ a b c -> j [a,b,c]
 	    _ -> j []
     sweep :: Routine -> M.Map Instruction Bool -> Routine
-    sweep r m = concatMap (\i -> if {-trace "sweep"-} m M.! i then [i] else [])  r
+    sweep r m = concatMap (\i -> [i | m M.! i]) --if {-trace "sweep"-} m M.! i then [i] else [])  r
     toVar :: Operand -> [Variable]
     toVar (SSAVar _ 0) = []
     toVar (SSAVar v s) = [Local v s]
@@ -334,7 +334,7 @@ replaceConstVar r (v,lc) =
     rO _ o = o
 
 singlePhisAreCopy :: Routine -> Routine
-singlePhisAreCopy ((Instruction n1 (Phi v1 [(src,s1)]) _):(Instruction n2 (B Move (Const (R r1)) v2) _):is) | n1 == r1 = (Instruction n1 (B Move (SSAVar v1 s1) v2) Nothing) : singlePhisAreCopy is
+singlePhisAreCopy (Instruction n1 (Phi v1 [(src,s1)]) _ : Instruction n2 (B Move (Const (R r1)) v2) _ : is) | n1 == r1 = Instruction n1 (B Move (SSAVar v1 s1) v2) Nothing : singlePhisAreCopy is
 singlePhisAreCopy (i:is) = i : singlePhisAreCopy is
 singlePhisAreCopy [] = []
 
@@ -390,7 +390,7 @@ visitExpr r cfm val ex instr =
 	changed = {-trace "visitExpr - changed"-} val M.! var /= valof
 	ssaw = if isdef instr && changed then use r var else []
 	valof = eval r val ex instr
-	controlsBr = isCondBr end && end `elem` (use r var)
+	controlsBr = isCondBr end && end `elem` use r var
 	brpredict = case valof of Bot -> map (Node blk,) sucs ; CB truth -> whichone (condBrResult instr truth)
 	jumpsto = blockWith cfm $ condBrJump instr
 	whichone res = case res of Jump -> [(nblk, jumpsto)]; Fall -> map (nblk,) . filter (/=jumpsto) $ sucs

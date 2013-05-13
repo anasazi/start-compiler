@@ -17,6 +17,7 @@ import Data.Ord
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Map as M
+import Control.Arrow
 
 import Debug.Trace
 
@@ -38,7 +39,7 @@ type Stacks = M.Map Variable [Integer]
 explodeParams :: NonSSA Program -> (InstrID, NonSSA Program)
 explodeParams (NonSSA prgm@(Program uts ms gs is)) = (next', NonSSA prgm')
   where (ms, rs) = unzip $ routinesWithHeaders prgm
-	params ms = map (\(Method _ _ ps) -> ps) ms
+	params = map (\(Method _ _ ps) -> ps)
 	work = zip (params ms) rs
 	next = (+1) . maximum . map iloc $ is
 	(next', rs') = mapAccumL explodeMethodParams next work
@@ -81,7 +82,7 @@ assigned cfm v = S.fromList . map key . filter contains $ nodes
 	  operandVariable _ = []
 
 phiProgram :: (InstrID, NonSSA Program) -> [PhiPlaced ControlFlowMap]
-phiProgram (next, (NonSSA prgm)) = snd . mapAccumL phiRoutine next . map NonSSA . routines $ prgm
+phiProgram (next, NonSSA prgm) = snd . mapAccumL phiRoutine next . map NonSSA . routines $ prgm
 
 phiRoutine :: InstrID -> NonSSA Routine -> (InstrID, PhiPlaced ControlFlowMap)
 phiRoutine nextInstrID (NonSSA r) = coerce . foldl phiVariable (nextInstrID, cfm0) $ vars
@@ -90,7 +91,7 @@ phiRoutine nextInstrID (NonSSA r) = coerce . foldl phiVariable (nextInstrID, cfm
 	  vars = S.toList $ variables r
 
 phiVariable :: (InstrID, NonSSA ControlFlowMap) -> Variable -> (InstrID, NonSSA ControlFlowMap)
-phiVariable (nextInstrID, (NonSSA cfm)) v = coerce $ helper nextInstrID S.empty initWork initW cfm
+phiVariable (nextInstrID, NonSSA cfm) v = coerce $ helper nextInstrID S.empty initWork initW cfm
     where
     initW = assigned cfm v
     initWork = initW
@@ -98,8 +99,8 @@ phiVariable (nextInstrID, (NonSSA cfm)) v = coerce $ helper nextInstrID S.empty 
     place :: (InstrID, ControlFlowMap) -> CFNode -> (InstrID, ControlFlowMap)
     place (id,cfm) y = 
 	let (block, succ) = cfm M.! y
-	    block' = (Instruction id (Phi v []) Nothing) : 
-		     (Instruction (id+1) (B Move (Const (R id)) (Var v)) Nothing) : 
+	    block' = Instruction id (Phi v []) Nothing : 
+		     Instruction (id+1) (B Move (Const (R id)) (Var v)) Nothing : 
 		     block
 	    in (id+2, M.insert y (block', succ) cfm)
     helper :: InstrID -> NodeSet -> NodeSet -> NodeSet -> ControlFlowMap -> (InstrID, ControlFlowMap)
@@ -126,7 +127,7 @@ renameRoutine (PhiPlaced cfm) = Renamed cfm'
 	  entry = toKey . find containsEnter . map (cfgNodeLU cfg) . vertices . cfgGraph $ cfg
 	  toKey (Just (_,x,_)) = x
 	  containsEnter (x,_,_) = any isEnter x
-	  vars = S.toList . S.unions . map variables . map fst . M.elems $ cfm
+	  vars = S.toList . S.unions . map (variables . fst) . M.elems $ cfm
 
 isEnter (Instruction _ (U Enter _) _) = True
 isEnter _ = False
@@ -190,7 +191,7 @@ fixJumps :: Renamed ControlFlowMap -> SSA ControlFlowMap
 fixJumps (Renamed cfm) = SSA . M.map (updateBlock cs) $ cfm
     where cs = newHeadsOfBlocks (Renamed cfm)
 
-updateElements cs = M.map (\(b,ls) -> (updateBlock cs b, updateSuccs cs ls))
+updateElements cs = M.map (updateBlock cs *** updateSuccs cs)
 
 updateSuccs cs = map (updateLocation cs)
 
@@ -212,17 +213,17 @@ updateLocation cs x = M.findWithDefault x x cs
 -- for each node, find the new starting instruction
 newHeadsOfBlocks :: Renamed ControlFlowMap -> M.Map Integer Integer
 newHeadsOfBlocks (Renamed cfm) = M.map (first . fst) cfm
-    where first ((Instruction x _ _):_) = x
+    where first (Instruction x _ _ : _) = x
 
 -- lineraize the control flow graph
 linearize :: ControlFlowMap -> Routine
-linearize cfm = concat . map (fst . (cfm M.!)) $ ordering
+linearize cfm = concatMap (fst . (cfm M.!)) ordering
     where 
     (Just entry) = find (any isEnter . fst . (cfm M.!)) $ M.keys cfm
     ending :: CFNode -> Instruction
     ending = last . fst . (cfm M.!)
     blockWith :: Integer -> Maybe CFNode
-    blockWith n = fmap fst . find ((any ((==n) . iloc)) . fst . snd) $ M.toList cfm
+    blockWith n = fmap fst . find (any ((==n) . iloc) . fst . snd) $ M.toList cfm
     next :: CFNode -> Maybe CFNode
     next k = 
 	let (Instruction n op _) = ending k in
@@ -236,11 +237,11 @@ linearize cfm = concat . map (fst . (cfm M.!)) $ ordering
 	    -- no branch: go to the successor
 	    _ -> listToMaybe . snd $ cfm M.! k
     f x = (x,x)
-    ordering = entry : unfoldr (\b -> fmap f $ next b) entry 
+    ordering = entry : unfoldr (fmap f . next) entry 
 
 -- this just produces the CFGs because the current CFG construction won't work with SSA stuff
 programToSSA :: NonSSA Program -> SSA [ControlFlowGraph]
-programToSSA = SSA . map f . map fixJumps . renameProgram . phiProgram . explodeParams
+programToSSA = SSA . map (f . fixJumps) . renameProgram . phiProgram . explodeParams
     where f (SSA cfm) = mapToGraph cfm
 
 -- TODO we need to renumber instructions and substitute into registers and code locations
@@ -251,20 +252,20 @@ renumber (Program uts ms gs is) = Program uts ms' gs is'
 	  ms' = renumberMethodLocs remapping ms
 
 renumberRegsAndLocs :: M.Map Integer Integer -> [Instruction] -> [Instruction]
-renumberRegsAndLocs remap is = map renumberInstruction is
+renumberRegsAndLocs remap = map renumberInstruction
     where renumberInstruction (Instruction old op t) = Instruction (remap M.! old) (renumberOpcode op) t
 	  renumberOpcode (U op a) = U op (renumberOperand a)
 	  renumberOpcode (B op a b) = B op (renumberOperand a) (renumberOperand b)
 	  renumberOpcode (Ter op a b c) = Ter op (renumberOperand a) (renumberOperand b) (renumberOperand c)
 	  renumberOpcode (Phi v preds) = Phi v (map renumberPhiPred preds)
 	  renumberOpcode x = x
-	  renumberOperand (Const (L old)) = (Const (L (remap M.! old)))
-	  renumberOperand (Const (R old)) = (Const (R (remap M.! old)))
+	  renumberOperand (Const (L old)) = Const (L (remap M.! old))
+	  renumberOperand (Const (R old)) = Const (R (remap M.! old))
 	  renumberOperand x = x
 	  renumberPhiPred (old,sub) = (remap M.! old, sub)
 
 renumberMethodLocs :: M.Map Integer Integer -> [Method] -> [Method]
-renumberMethodLocs remap ms = map renumberMethod ms
+renumberMethodLocs remap = map renumberMethod
     where renumberMethod (Method n old vars) = Method n (remap M.! old) vars
 
 p2ssa :: NonSSA Program -> SSA Program
@@ -286,8 +287,8 @@ programFromSSA :: Program -> SSA [ControlFlowGraph] -> NonSSA Program
 programFromSSA (Program uts ms gs _) (SSA cfgs) = wrap . coalesce . mapAccumL routineFromSSA next $ work
     where cfms = map graphToMap cfgs
 	  work = zipWith (\m cfm -> (m, SSA cfm)) ms cfms
-	  next = (+1) . maximum . map (maximum . (map (maximum . map iloc . fst)) . M.elems) $ cfms
-	  coalesce = concat . map (\(NonSSA x) -> x) . snd
+	  next = (+1) . maximum . map (maximum . map (maximum . map iloc . fst) . M.elems) $ cfms
+	  coalesce = concatMap (\(NonSSA x) -> x) . snd
 	  wrap is' = NonSSA . renumber  $ Program uts ms gs is'
 
 routineFromSSA :: InstrID -> (Method, SSA ControlFlowMap) -> (InstrID, NonSSA Routine)
@@ -338,19 +339,19 @@ phiSet2Reg m v2r [] = (v2r, [])
 
 -- step 1b: convert assignments to ssa variables into register computations
 ssaSet2Reg :: Method -> SSAVarToReg -> BasicBlock -> (SSAVarToReg, BasicBlock)
-ssaSet2Reg m v2r is = mapAccumL ssaSet2Reg' v2r $ is
+ssaSet2Reg m v2r is = mapAccumL ssaSet2Reg' v2r is
     where ssaSet2Reg' v2r (Instruction n (B Move x (SSAVar v s)) _) = (M.insert (v,s) (n,typeOf v) v2r,add0 n x v)
 	  ssaSet2Reg' v2r i = (v2r, i)
-	  typeOf v = typeOfVar m v
+	  typeOf = typeOfVar m
 	  add0 n x v = Instruction n (B Add x (Const (C 0))) (Just $ typeOf v)
 
 -- step 1
 set2reg :: Method -> [BasicBlock] -> (SSAVarToReg, [BasicBlock])
-set2reg m bs = (\(v2r,bs') -> mapAccumL (ssaSet2Reg m) v2r bs') $ mapAccumL (phiSet2Reg m) M.empty bs
+set2reg m bs = uncurry (mapAccumL (ssaSet2Reg m)) $ mapAccumL (phiSet2Reg m) M.empty bs
 
 -- step 2: covert all non-phi uses of SSA variables into uses of the registers instead
 use2reg :: SSAVarToReg -> [BasicBlock] -> [BasicBlock]
-use2reg v2r bbs = map (ssaUse2Reg v2r) bbs
+use2reg v2r = map (ssaUse2Reg v2r)
 
 ssaUse2Reg :: SSAVarToReg -> BasicBlock -> BasicBlock
 ssaUse2Reg v2r = map ssaUse2Reg'
@@ -406,7 +407,7 @@ insertMoveBlock v2r offs next (me,block,phis) = foldl insertMove (next,block) wo
     sourceReg = fst . (v2r M.!)
     source = sourceReg . sourceVar
     target = (offs M.!)
-    work = map (\p -> (source p, target p)) phis
+    work = map (source &&& target) phis
 
 succPhis :: ControlFlowMap -> CFNode -> [Phi]
 succPhis cfm x = concatMap getPhiNodes . map (fst . (cfm M.!)) . snd $ cfm M.! x
@@ -433,10 +434,10 @@ getPhiNodes = allPhi . (:[])
 
 -- step 4b: replace each phi node with "add <var> 0 :<type>"
 replacePhi :: SSAVarToReg -> PhiOffsets -> ControlFlowMap -> ControlFlowMap
-replacePhi v2r offs cfm = M.map (\(b,s) -> (replacePhiBlock v2r offs b, s)) cfm
+replacePhi v2r offs = M.map (first (replacePhiBlock v2r offs))
 
 replacePhiBlock :: SSAVarToReg -> PhiOffsets -> BasicBlock -> BasicBlock
-replacePhiBlock v2r offs bb = map f bb
+replacePhiBlock v2r offs = map f
     where f (Instruction n (Phi v subs@((_,s):_)) _) = Instruction n (B Add (Const (C 0)) (Var (SV "__ssa_util" (offs M.! (n,v,subs))))) (Just $ t v s)
 	  f i = i
 	  t v s = snd (v2r M.! (v,s))

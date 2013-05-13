@@ -27,7 +27,7 @@ cfgVertexLU (CFG (_,_,k)) = k
 type ControlFlowMap = M.Map Integer (BasicBlock, [Integer])
 
 graphToMap :: ControlFlowGraph -> ControlFlowMap
-graphToMap cfg = M.fromList . map rearrange . map (cfgNodeLU cfg) . vertices . cfgGraph $ cfg
+graphToMap cfg = M.fromList . map (rearrange . cfgNodeLU cfg) . vertices . cfgGraph $ cfg
     where rearrange (a,b,c) = (b,(a,c))
 
 mapToGraph :: ControlFlowMap -> ControlFlowGraph
@@ -56,10 +56,10 @@ routinesWithHeaders :: Program -> [(Method, Routine)]
 routinesWithHeaders (Program _ ms _ is) = map g ms  --map f ms
   where 
   entries = map rloc ms
-  extract y = takeWhile (not . (`elem` (filter (/= y) entries)) . iloc) . dropWhile ((/= y) . iloc) $ is 
+  extract y = takeWhile (not . (`elem` filter (/= y) entries) . iloc) . dropWhile ((/= y) . iloc) $ is 
   g m = (m, extract . rloc $ m)
-  rloc = \(Method _ x _) -> x
-  iloc = \(Instruction x _ _) -> x
+  rloc (Method _ x _) = x
+  iloc (Instruction x _ _) = x
 
 -- starting instruction is a leader
 start = (\(Just (Instruction n _ _)) -> n) . find isEnter
@@ -96,13 +96,13 @@ leaders r = nub $ start r : targets r ++ followers r
 basicBlocks :: Routine -> [BasicBlock]
 basicBlocks r = map getInstructions ls
   where ls = leaders r
-	getInstructions l = takeWhile (not . (`elem` (filter (/= l) ls)) . iloc) . dropWhile ((/= l) . iloc) $ r
+	getInstructions l = takeWhile (not . (`elem` filter (/= l) ls) . iloc) . dropWhile ((/= l) . iloc) $ r
 	iloc (Instruction n _ _) = n
 
 -- edges of the control flow graph where each block is represented by the location of its leader
 -- TODO need to add fallthrough in conditional branches
 buildEdgeList :: Routine -> [BasicBlock] -> [(BasicBlock, Integer, [Integer])]
-buildEdgeList r bbl = map (\b -> (b, label b, (fall r b) ++ jumps b)) bbl
+buildEdgeList r = map (\b -> (b, label b, fall r b ++ jumps b)) 
     where label = (\(Instruction x _ _) -> x) . head :: BasicBlock -> Integer
 
 fall :: Routine -> BasicBlock -> [Integer]
@@ -138,5 +138,5 @@ cfg r = CFG . graphFromEdges $ el2
 	  (Just sv) = vlu s
 	  rvs = sort $ reachable g sv
 	  rbbs = map ((\(n,_,_) -> n) . nlu) rvs
-	  el2 = buildEdgeList r $ rbbs
+	  el2 = buildEdgeList r rbbs
 
