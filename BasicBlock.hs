@@ -1,4 +1,9 @@
-module BasicBlock where
+module BasicBlock 
+( BasicBlock
+, leader
+, end
+, toBlock
+) where
 
 {-
  - A non-empty straight-line sequence of instructions without control flow between them.
@@ -10,4 +15,6 @@ instance Functor BasicBlock where
   fmap f = BB . fmap f . runBB
 
 leader = head . runBB
-exit = last . runBB
+end = last . runBB
+
+toBlock = BB
