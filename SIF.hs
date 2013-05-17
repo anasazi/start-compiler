@@ -3,6 +3,7 @@ module SIF where
 
 import Pretty
 import Text.PrettyPrint.HughesPJ
+import InstructionSet
 
 type SIFNum = Integer -- maybe switch to Int32
 
@@ -67,6 +68,20 @@ data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry instructio
 data SIFGlobalDecl = SIFGlobalDecl SIFIdentifier SIFOffset {- offset from GP -} SIFType deriving Show
 data SIFInstruction = SIFInstruction SIFLocation SIFOpcode  deriving Show
 data SIFProgram = SIFProgram [SIFTypeDecl] [SIFMethodDecl] [SIFGlobalDecl] [SIFInstruction] deriving Show
+
+instance InstructionSet SIFInstruction where
+  idnum (SIFInstruction l _) = l
+  isEnter (SIFInstruction _ o) = case o of
+    SideEffect (Enter _) -> True
+    SideEffect Entrypc -> True
+    _ -> False
+  isJump (SIFInstruction _ o) = case o of
+    Branch _ _ -> True
+    SideEffect (Ret _) -> True
+    _ -> False
+  target (SIFInstruction _ o) = case o of
+    Branch _ (Label l) -> Just l
+    _ -> Nothing
 
 instance Pretty SIFOperand where
   pretty operand = case operand of
