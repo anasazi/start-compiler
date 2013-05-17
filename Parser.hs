@@ -1,10 +1,13 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {- Parse input SIF into the SIF data structure -}
-module Parser (program) where
+module Parser (program, readProgram) where
 
 import SIF
 import Text.Parsec
 import Control.Monad
+
+-- parser function
+readProgram = parse program ""
 
 sign	  = option 1 (char '-' >> return (-1))
 num	  = liftM2 (*) sign (liftM read $ many1 digit) <?> "integer"
@@ -75,7 +78,7 @@ sideeffect = choice . map try $ [call, store, move, checkbounds, storedynamic, w
 neg = string "neg" >> return Neg
 isnull = string "isnull" >> return Isnull
 load = string "load" >> return Load
-new = string "new" >> return New
+new = string "new" >> notFollowedBy alphaNum >> return New
 newlist = string "newlist" >> return Newlist
 checknull = string "checknull" >> return Checknull
 unary = choice . map try $ [neg, isnull, load, new, newlist, checknull]
