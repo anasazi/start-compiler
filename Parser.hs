@@ -12,10 +12,10 @@ offset	  = num <?> "offset"
 size	  = num <?> "size"
 location  = num <?> "location"
 
-hash	= char '#' <?> "#"
-colon	= char ':' <?> ":"
-at	= char '@' <?> "@"
-aspace	= char ' ' <?> "a space"
+hash	= char '#'
+colon	= char ':'
+at	= char '@'
+aspace	= char ' '
 star	= char '*'
 
 idFirst = letter <|> char '_'
@@ -39,9 +39,7 @@ register      = liftM Register $ between (char '(') (char ')') location
 typeuse	      = liftM2 Type (identiferSuffix $ string "_type#") size
 codelabel     = liftM Label $ between (char '[') (char ']') location
 
-operand = choice . map try $
-  [global, frame, constant, address, staticField, 
-  dynamicField, stack, register, typeuse, codelabel]
+operand = choice (map try [global, frame, constant, address, staticField, dynamicField, stack, register, typeuse, codelabel]) <?> "operand"
 
 -- SIF types
 unboxInt    = string "int" >> return UnboxInt
@@ -51,15 +49,13 @@ boxBool	    = string "Boolean" >> return BoxBool
 boxList	    = string "List" >> return List
 boxClass    = liftM Class identifier
 boxDynamic  = string "dynamic" >> return Dynamic
-baseType = choice . map try $ 
-  [unboxInt, unboxBool, boxInt, boxBool, boxList, boxClass, boxDynamic]
-pointer = do
-  t <- baseType
-  stars <- many star
-  return $ foldl1 (.) (id : map (const Pointer) stars) t
-typesig = pointer
+baseType = choice . map try $ [unboxInt, unboxBool, boxInt, boxBool, boxList, boxClass, boxDynamic]
+pointer = liftM2 f baseType (many star) <?> "type"
+  where f t s = foldl1 (.) (id : map (const Pointer) s) t
+typesig = colon >> pointer 
 
 spaceOp = aspace >> operand
+spaceType = aspace >> typesig
 
 -- SIF side effect opcodes
 call = liftM Call (string "call" >> spaceOp)
@@ -73,9 +69,7 @@ enter = liftM Enter (string "enter" >> spaceOp)
 ret = liftM Ret (string "ret" >> spaceOp)
 param = liftM Param (string "param" >> spaceOp)
 entrypc = string "entrypc" >> return Entrypc
-sideeffect = choice . map try $ 
-  [call, store, move, checkbounds, storedynamic, 
-   write, wrl, enter, ret, param, entrypc]
+sideeffect = choice . map try $ [call, store, move, checkbounds, storedynamic, write, wrl, enter, ret, param, entrypc]
 
 -- SIF unary opcodes
 neg = string "neg" >> return Neg
@@ -98,8 +92,7 @@ lt = string "cmplt" >> return Less
 istype = string "istype" >> return Istype
 checktype = string "checktype" >> return Checktype
 loaddynamic = string "lddynamic" >> return LoadDyanmic
-binary = choice . map try $ 
-  [add, sub, mul, divide, modulo, eq, leq, lt, istype, checktype, loaddynamic]
+binary = choice . map try $ [add, sub, mul, divide, modulo, eq, leq, lt, istype, checktype, loaddynamic]
 
 -- SIF branch opcodes
 jump = string "br" >> return Jump
@@ -107,48 +100,24 @@ ifzero = liftM IfZero $ string "blbc" >> spaceOp
 ifset = liftM IfSet $ string "blbs" >> spaceOp
 branch = choice . map try $ [jump, ifzero, ifset]
 
-spaceType = aspace >> colon >> typesig
-
 -- SIF opcodes
 nop = string "nop" >> return NOP
-opcode = choice . map try $
-  [ liftM SideEffect sideeffect
-  , liftM3 Unary unary spaceOp spaceType
-  , liftM4 Binary binary spaceOp spaceOp spaceType
-  , liftM2 Branch branch spaceOp
-  , nop
-  ]
+sideeffectopcode = liftM SideEffect sideeffect
+unaryopcode = liftM3 Unary unary spaceOp spaceType
+binaryopcode = liftM4 Binary binary spaceOp spaceOp spaceType
+branchopcode = liftM2 Branch branch spaceOp
+opcode = choice (map try [sideeffectopcode, unaryopcode, binaryopcode, branchopcode, nop]) <?> "opcode"
 
-var = liftM3 (,,) identifier (hash >> size) (colon >> typesig)
+-- variable list
+var = liftM3 (,,) identifier (hash >> size) typesig
 varDecl = sepBy1 var aspace
 
-typeDecl = 
-  liftM2 SIFTypeDecl 
-    (string "type" >> aspace >> identifier)
-    (colon >> aspace >> varDecl)
+-- top level stuff
+typeDecl = liftM2 SIFTypeDecl (string "type" >> aspace >> identifier) (colon >> aspace >> varDecl) <?> "type declaration"
+methodDecl = liftM3 SIFMethodDecl (string "method" >> aspace >> identifier) (at >> location) (colon >> option [] (aspace >> varDecl)) <?> "method declaration"
+globalDecl = liftM3 SIFGlobalDecl (string "global" >> aspace >> identifier) (hash >> offset) typesig <?> "global declaration"
+instruction = liftM2 SIFInstruction (string "instr" >> aspace >> location) (colon >> aspace >> opcode) <?> "instruction"
 
-methodDecl = 
-  liftM3 SIFMethodDecl
-    (string "method" >> aspace >> identifier)
-    (at >> location)
-    (colon >> option [] (aspace >> varDecl))
-
-globalDecl = 
-  liftM3 SIFGlobalDecl
-    (string "global" >> aspace >> identifier)
-    (hash >> offset)
-    (colon >> typesig)
-
-instruction =
-  liftM2 SIFInstruction
-    (string "instr" >> aspace >> location)
-    (colon >> aspace >> opcode)
-
+-- the whole program
 lots x = sepEndBy x (newline >> spaces)
-
-program = 
-  liftM4 SIFProgram
-    (spaces >> lots typeDecl)
-    (lots methodDecl)
-    (lots globalDecl)
-    (lots instruction)
+program = liftM4 SIFProgram (spaces >> lots typeDecl) (lots methodDecl) (lots globalDecl) (lots instruction)
