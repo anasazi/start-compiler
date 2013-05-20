@@ -10,9 +10,6 @@ import Data.Function (on)
 import Data.List (nub, groupBy)
 import Data.Maybe (catMaybes)
 
-data Hole = Hole
-hole = undefined
-
 {-
  - A non-empty straight-line sequence of instructions without control flow between them.
  - The first instruction (leader) is a) the entrence of a method/program or b) a jump target.
