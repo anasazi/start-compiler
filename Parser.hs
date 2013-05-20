@@ -112,12 +112,12 @@ branchopcode = liftM2 Branch branch spaceOp
 opcode = choice (map try [sideeffectopcode, unaryopcode, binaryopcode, branchopcode, nop]) <?> "opcode"
 
 -- variable list
-var = liftM3 (,,) identifier (hash >> size) typesig
-varDecl = sepBy1 var aspace
+varDecl = liftM3 SIFVarDecl identifier (hash >> size) typesig
+varDeclList = sepBy1 varDecl aspace
 
 -- top level stuff
-typeDecl = liftM2 SIFTypeDecl (string "type" >> aspace >> identifier) (colon >> aspace >> varDecl) <?> "type declaration"
-methodDecl = liftM3 SIFMethodDecl (string "method" >> aspace >> identifier) (at >> location) (colon >> option [] (aspace >> varDecl)) <?> "method declaration"
+typeDecl = liftM2 SIFTypeDecl (string "type" >> aspace >> identifier) (colon >> aspace >> varDeclList) <?> "type declaration"
+methodDecl = liftM3 SIFMethodDecl (string "method" >> aspace >> identifier) (at >> location) (colon >> option [] (aspace >> varDeclList)) <?> "method declaration"
 globalDecl = liftM3 SIFGlobalDecl (string "global" >> aspace >> identifier) (hash >> offset) typesig <?> "global declaration"
 instruction = liftM2 SIFInstruction (string "instr" >> aspace >> location) (colon >> aspace >> opcode) <?> "instruction"
 

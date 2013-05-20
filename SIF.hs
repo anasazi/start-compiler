@@ -62,7 +62,7 @@ data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving Show
 data SIFBinary = Add | Sub | Mul | Div | Mod | Equal | LessEqual | Less | Istype | Checktype | LoadDyanmic deriving Show
 data SIFBranch = Jump | IfZero SIFOperand {- test -} | IfSet SIFOperand {- test -} deriving Show
 
-type SIFVarDecl = (SIFIdentifier, SIFSize, SIFType)
+data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving Show
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
 data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry location -} [SIFVarDecl] deriving Show
 data SIFGlobalDecl = SIFGlobalDecl SIFIdentifier SIFOffset {- offset from GP -} SIFType deriving Show
@@ -164,14 +164,14 @@ instance Pretty SIFOpcode where
     Branch br tar -> pretty br <+> pretty tar
     NOP -> text "nop"
 
-prettyVarDecl (i,s,t) = text (i ++ "#") <> integer s <> colon <> pretty t
-prettyVarList = hsep . map prettyVarDecl
+instance Pretty SIFVarDecl where
+  pretty (SIFVarDecl i s t) = text (i ++ "#") <> integer s <> colon <> pretty t
 
 instance Pretty SIFTypeDecl where
-  pretty (SIFTypeDecl i vars) = text ("    type " ++ i) <> colon <+> prettyVarList vars
+  pretty (SIFTypeDecl i vars) = text ("    type " ++ i) <> colon <+> hsep (map pretty vars) 
 
 instance Pretty SIFMethodDecl where
-  pretty (SIFMethodDecl i l params) = text ("    method " ++ i ++ "@") <> integer l <> colon <+> prettyVarList params
+  pretty (SIFMethodDecl i l params) = text ("    method " ++ i ++ "@") <> integer l <> colon <+> hsep (map pretty params) 
 
 instance Pretty SIFGlobalDecl where
   pretty (SIFGlobalDecl i o t) = text ("    global " ++ i ++ "#") <> integer o <> colon <> pretty t
@@ -179,8 +179,5 @@ instance Pretty SIFGlobalDecl where
 instance Pretty SIFInstruction where
   pretty (SIFInstruction l op) = text "    instr" <+> integer l <> colon <+> pretty op
 
-instance (Pretty a) => Pretty [a] where
-  pretty = vcat . map pretty
-
 instance Pretty SIFProgram where
-  pretty (SIFProgram ts ms gs is) = pretty ts $$ pretty ms $$ pretty gs $$ pretty is
+  pretty (SIFProgram ts ms gs is) = vcat (map pretty ts) $$ vcat (map pretty ms) $$ vcat (map pretty gs) $$ vcat (map pretty is)
