@@ -2,7 +2,7 @@ module ControlFlowGraph
 ( Vertex
 , CFG, buildCFG, linearize
 , entry, exit, blocks, succs, preds
-, mapBlocks
+--, mapBlocks
 ) where
 
 import InstructionSet
@@ -22,8 +22,8 @@ data CFG i = CFG
   , preds :: Map Vertex (Set Vertex) 
   }
 
-mapBlocks :: (BasicBlock a -> BasicBlock b) -> CFG a -> CFG b
-mapBlocks f (CFG i o bs ss ps) = CFG i o (fmap f bs) ss ps
+--mapBlocks :: (BasicBlock a -> BasicBlock b) -> CFG a -> CFG b
+--mapBlocks f (CFG i o bs ss ps) = CFG i o (fmap f bs) ss ps
 
 buildCFG :: InstructionSet i => [i] -> CFG i
 buildCFG = hole
