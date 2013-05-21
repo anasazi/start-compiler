@@ -10,9 +10,6 @@ import SIF
 import Data.Map
 import Data.List
 
-data Hole = Hole
-hole = undefined
-
 type Routines i = Map SIFMethodDecl i
 
 mloc (SIFMethodDecl _ loc _) = loc
