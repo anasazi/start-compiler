@@ -2,7 +2,7 @@ module BasicBlock
 ( BasicBlock
 , leader
 , end
-, blocks
+, toBlocks
 ) where
 
 import InstructionSet
@@ -22,8 +22,8 @@ instance Functor BasicBlock where
 leader = head . runBB
 end = last . runBB
 
-blocks :: InstructionSet i => [i] -> [BasicBlock i]
-blocks is = map BB blockified
+toBlocks :: InstructionSet i => [i] -> [BasicBlock i]
+toBlocks is = map BB blockified
   where 
   leaders = nub $ entrypc ++ calls ++ jumps ++ falls
 	where 
