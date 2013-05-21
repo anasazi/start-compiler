@@ -1,8 +1,8 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module BasicBlock 
-( BasicBlock
-, leader
-, end
-, toBlocks
+( BasicBlock, empty
+, leader, end
+, toBlocks, fromBlocks
 ) where
 
 import InstructionSet
@@ -22,6 +22,9 @@ instance Functor BasicBlock where
 leader = head . runBB
 end = last . runBB
 
+empty = BB [nop]
+
+-- Break an instruction stream into basic blocks
 toBlocks :: InstructionSet i => [i] -> [BasicBlock i]
 toBlocks is = map BB blockified
   where 
@@ -39,3 +42,6 @@ toBlocks is = map BB blockified
 	f [] = []
 	f (x:xs) = let (ys,zs) = break isLeader xs in (x : ys) : f zs
 
+-- Unwrap and concatenate the basic blocks
+fromBlocks :: [BasicBlock i] -> [i]
+fromBlocks = concatMap runBB
