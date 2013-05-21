@@ -15,7 +15,7 @@ import Data.Maybe (catMaybes)
  - The first instruction (leader) is a) the entrence of a method/program or b) a jump target.
  - The last instruction (exit) is a) a branch or b) the instruction before a jump target.
  -}
-newtype BasicBlock i = BB { runBB :: [i] }
+newtype BasicBlock i = BB { runBB :: [i] } deriving Show
 instance Functor BasicBlock where
   fmap f = BB . fmap f . runBB
 
