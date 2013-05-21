@@ -34,7 +34,7 @@ data SIFType =
   | Class SIFIdentifier 
   | Dynamic 
   | Pointer SIFType 
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data SIFOpcode = 
     SideEffect SIFSideEffect 
@@ -62,9 +62,9 @@ data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving Show
 data SIFBinary = Add | Sub | Mul | Div | Mod | Equal | LessEqual | Less | Istype | Checktype | LoadDyanmic deriving Show
 data SIFBranch = Jump | IfZero SIFOperand {- test -} | IfSet SIFOperand {- test -} deriving Show
 
-data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving Show
+data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving (Eq, Ord, Show)
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
-data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry location -} [SIFVarDecl] deriving Show
+data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry location -} [SIFVarDecl] deriving (Eq, Ord, Show)
 data SIFGlobalDecl = SIFGlobalDecl SIFIdentifier SIFOffset {- offset from GP -} SIFType deriving Show
 data SIFInstruction = SIFInstruction SIFLocation SIFOpcode  deriving Show
 data SIFProgram = SIFProgram [SIFTypeDecl] [SIFMethodDecl] [SIFGlobalDecl] [SIFInstruction] deriving Show
