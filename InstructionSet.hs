@@ -13,3 +13,5 @@ class InstructionSet a where
   callTarget :: a -> Maybe Integer
   -- is this the main method entry point?
   isMain :: a -> Bool
+  -- how do I do nothing?
+  nop :: Integer -> a

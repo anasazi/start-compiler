@@ -89,6 +89,8 @@ instance InstructionSet SIFInstruction where
   isMain (SIFInstruction _ (SideEffect Entrypc)) = True
   isMain _ = False
 
+  nop n = SIFInstruction n NOP
+
 instance Pretty SIFOperand where
   pretty operand = case operand of
     Global -> text "GP"
