@@ -2,11 +2,10 @@ module ControlFlowGraph
 ( Vertex
 , CFG, buildCFG, linearize
 , entry, exit, blocks, succs, preds
---, mapBlocks
 ) where
 
 import InstructionSet
-import BasicBlock
+import BasicBlock 
 import Data.Map
 import Data.Set
 
@@ -22,11 +21,10 @@ data CFG i = CFG
   , preds :: Map Vertex (Set Vertex) 
   }
 
---mapBlocks :: (BasicBlock a -> BasicBlock b) -> CFG a -> CFG b
---mapBlocks f (CFG i o bs ss ps) = CFG i o (fmap f bs) ss ps
-
-buildCFG :: InstructionSet i => [i] -> CFG i
+-- Given the basic blocks for a routine, build the CFG
+buildCFG :: InstructionSet i => [BasicBlock i] -> CFG i
 buildCFG = hole
 
-linearize :: CFG a -> [a]
+-- Given the CFG for a routine, organize the blocks in their linear order
+linearize :: InstructionSet i => CFG i -> [BasicBlock i]
 linearize = hole
