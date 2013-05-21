@@ -22,7 +22,7 @@ instance Functor BasicBlock where
 leader = head . runBB
 end = last . runBB
 
-empty = BB [nop]
+empty n = BB [nop n]
 
 -- Break an instruction stream into basic blocks
 toBlocks :: InstructionSet i => [i] -> [BasicBlock i]
