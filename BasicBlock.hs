@@ -2,6 +2,7 @@
 module BasicBlock 
 ( BasicBlock, empty
 , leader, end
+, falls, jumpsTo, label
 , toBlocks, fromBlocks
 ) where
 
@@ -10,17 +11,26 @@ import Data.Function (on)
 import Data.List (nub, groupBy)
 import Data.Maybe (catMaybes)
 
-{-
- - A non-empty straight-line sequence of instructions without control flow between them.
- - The first instruction (leader) is a) the entrence of a method/program or b) a jump target.
- - The last instruction (exit) is a) a branch or b) the instruction before a jump target.
+{- A non-empty straight-line sequence of instructions without control 
+ - flow between them. The first instruction (leader) is 
+ - a) the entrence of a method/program or b) a jump target.
+ - The last instruction (exit) is a) a branch or b) the instruction 
+ - before a jump target.
  -}
-newtype BasicBlock i = BB { runBB :: [i] } deriving Show
+newtype BasicBlock i = BB { runBB :: [i] } deriving (Eq, Show)
 instance Functor BasicBlock where
   fmap f = BB . fmap f . runBB
 
 leader = head . runBB
 end = last . runBB
+
+-- can this block fall off the end?
+falls = canFall . end
+-- where does this block jump to?
+jumpsTo = jumpTarget . end
+-- jump target label of this block
+label :: InstructionSet i => BasicBlock i -> Integer
+label = loc . leader
 
 empty n = BB [nop n]
 
