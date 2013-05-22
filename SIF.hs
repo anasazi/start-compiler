@@ -80,6 +80,10 @@ instance InstructionSet SIFInstruction where
   jumpTarget (SIFInstruction _ (Branch _ (Label l))) = Just l
   jumpTarget _ = Nothing
 
+  canFall (SIFInstruction _ (Branch Jump _)) = False
+  canFall (SIFInstruction _ (SideEffect (Ret _))) = False
+  canFall _ = True
+
   isCall (SIFInstruction _ (SideEffect (Call _))) = True
   isCall _ = False
 
@@ -170,10 +174,12 @@ instance Pretty SIFVarDecl where
   pretty (SIFVarDecl i s t) = text (i ++ "#") <> integer s <> colon <> pretty t
 
 instance Pretty SIFTypeDecl where
-  pretty (SIFTypeDecl i vars) = text ("    type " ++ i) <> colon <+> hsep (map pretty vars) 
+  pretty (SIFTypeDecl i vars) = text ("    type " ++ i) <> colon <+> pretty (Horizontal vars)
+  --pretty (SIFTypeDecl i vars) = text ("    type " ++ i) <> colon <+> hsep (map pretty vars) 
 
 instance Pretty SIFMethodDecl where
-  pretty (SIFMethodDecl i l params) = text ("    method " ++ i ++ "@") <> integer l <> colon <+> hsep (map pretty params) 
+  pretty (SIFMethodDecl i l params) = text ("    method " ++ i ++ "@") <> integer l <> colon <+> pretty (Horizontal params)
+  --pretty (SIFMethodDecl i l params) = text ("    method " ++ i ++ "@") <> integer l <> colon <+> hsep (map pretty params) 
 
 instance Pretty SIFGlobalDecl where
   pretty (SIFGlobalDecl i o t) = text ("    global " ++ i ++ "#") <> integer o <> colon <> pretty t
@@ -182,4 +188,5 @@ instance Pretty SIFInstruction where
   pretty (SIFInstruction l op) = text "    instr" <+> integer l <> colon <+> pretty op
 
 instance Pretty SIFProgram where
-  pretty (SIFProgram ts ms gs is) = vcat (map pretty ts) $$ vcat (map pretty ms) $$ vcat (map pretty gs) $$ vcat (map pretty is)
+  pretty (SIFProgram ts ms gs is) = pretty (Vertical ts) $$ pretty (Vertical ms) $$ pretty (Vertical gs) $$ pretty (Vertical is)
+  --pretty (SIFProgram ts ms gs is) = vcat (map pretty ts) $$ vcat (map pretty ms) $$ vcat (map pretty gs) $$ vcat (map pretty is)
