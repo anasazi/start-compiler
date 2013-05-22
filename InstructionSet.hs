@@ -7,6 +7,8 @@ class InstructionSet a where
   isJump :: a -> Bool
   -- the target location of a jump instruction
   jumpTarget :: a -> Maybe Integer
+  -- can this instruction not make a control flow jump?
+  canFall :: a -> Bool
   -- is this instruction a method call?
   isCall :: a -> Bool
   -- the target location of a methoc call
