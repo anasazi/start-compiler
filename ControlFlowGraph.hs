@@ -1,21 +1,22 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ControlFlowGraph 
-( Vertex
+{- ( Vertex
 , CFG, buildCFG, linearize
 , entry, vertices, blocks, edges
 , succs, preds
 , reachable
-) where
+) -} where
 
 import InstructionSet
 import BasicBlock 
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Maybe
-import Debug.Trace
+import Data.Array.IArray
 
 newtype Vertex = Vertex Integer deriving (Eq, Ord, Enum, Show)
+data Edge = Jump Vertex | Fall Vertex deriving (Eq, Show)
 data CFG i = CFG 
   { entry :: Vertex
   , blocks :: M.Map Vertex (BasicBlock i)
@@ -74,7 +75,8 @@ linearize cfg = fmap (blocks cfg M.!) ordering
       let b = blocks cfg M.! v
       in if falls b 
 	 then case S.toList $ succs cfg v of 
-	    --[] -> let x = succ v in trace (show v) (if x `elem` vertices cfg then x : follows x else [])
 	    [x] -> x : follows x
+	    -- TODO does this check work? No. It's comparing a vertex id to a code location.
 	    [x,y] -> if Vertex (fromJust (jumpsTo (blocks cfg M.! v))) == x then y : follows y else x : follows x
+	  -- TODO can't assume vertices are numbered contiguously
 	  else let x = succ v in if x `elem` vertices cfg then x : follows x else []
