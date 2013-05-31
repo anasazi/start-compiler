@@ -40,7 +40,9 @@ toSSA (SIFMethodDecl _ _ params) cfg = do
   let restructured = fmap instructionSIF2SSA cfg
   inserted <- insertPhis restructured
   let renamed = renamePhis params inserted
-  return renamed
+  let updatedLeaders = M.fromList [(loc . leader $ blocks cfg M.! v, loc . leader $ blocks renamed M.! v) | v <- vertices cfg ]
+  let fixedJumps = updateLabels updatedLeaders renamed
+  return fixedJumps
 
 -- inserting phis where needed
 insertPhis :: CFG (SSAInstruction (Maybe Integer)) -> State SIFLocation (CFG (SSAInstruction (Maybe Integer)))
@@ -78,7 +80,19 @@ renamePhis params cfg =
       state = M.fromList $ [ ((ident, off), (1, [0])) | (Local ident off Nothing) <- S.toList paramsAsVars ] 
 			++ [ ((ident, off), (0, [])) | (Local ident off Nothing) <- S.toList usedVars ]
       renamed = evalState (rename cfg (entry cfg)) state
-  in makeCertain renamed
+      certain = makeCertain renamed
+  in certain
+
+updateLabels :: M.Map SIFLocation SIFLocation -> CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
+updateLabels old2new cfg = fmap updateInstruction cfg
+  where updateInstruction (SSAInstruction loc tar opc) = SSAInstruction loc tar $ updateOpcode opc
+    
+	updateOpcode (SIF sif) = SIF $ fmap updateOperand sif
+	updateOpcode (Copy val) = Copy $ updateOperand val
+	updateOpcode x = x
+
+	updateOperand (Val (Label o)) = Val . Label $ M.findWithDefault o o old2new--old2new M.! o
+	updateOperand x = x
 
 makeCertain = fmap (fmap fromJust)
 
@@ -173,6 +187,12 @@ instructionSIF2SSA i@(SIFInstruction loc opc) = SSAInstruction loc (assignsToSIF
 
 --fromSSA :: CFG SSA -> CFG SIFInstruction
 fromSSA = hole
+{- general plan for converting from SSA to SIF
+  1. convert all assignments to stack variables into assignments to registers.
+     update uses of the stack variables into uses of the new registers.
+     (uses of initial parameter vaules are not changed)
+  2. TODO
+-}
 
 -- The SSA data structures
 data SSAVar a = 
