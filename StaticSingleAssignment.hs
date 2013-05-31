@@ -54,7 +54,21 @@ createPhi var = do
 
 -- renaming vars wth subscripts
 renamePhis :: CFG (SSAInstruction ()) -> CFG (SSAInstruction SIFLocation)
-renamePhis cfg = hole
+renamePhis cfg =
+  let vars = S.toList . S.unions . fmap stackVars . M.elems . blocks $ cfg
+      state = M.fromList [ (v, (0, [])) | v <- vars ]
+  in evalState (rename cfg (entry cfg)) state
+
+rename :: CFG (SSAInstruction ()) -> Vertex -> State (M.Map (SSAVar ()) (Integer, [Integer])) (CFG (SSAInstruction SIFLocation))
+rename cfg v = do
+  -- get block v
+  let b = blocks cfg M.! v
+  -- generate a name for the target of each phi node
+  -- replace variables used and generate names for variables assigned to in block
+  -- update the phi nodes of CFG successors
+  -- recurse into children in dominator tree
+  -- pop variables defined in block
+  hole
 
 genName var = do
   (i,_) <- fmap (M.!var) get
