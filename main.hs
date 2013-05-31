@@ -24,7 +24,10 @@ printCFGs ast@(SIFProgram ts ms gs is)  = do
   let cfgs = fmap buildCFG rs
   let ssas = allToSSA cfgs
   forM_ (toList ssas) $ \(m, ssa) -> do
-    print "as SSA structure:"
-    mapM_ (\(v,b) -> print v >> print (f b)) $ toList . blocks $ ssa
-      where f = pretty . Vertical . fromBlock
+    --print "as SSA structure:"
+    --mapM_ (\(v,b) -> print v >> print (pretty . Vertical . fromBlock $ b)) $ toList . blocks $ ssa
   -- TODO after translating back from SSA, linearize and renumber sequentially.
+    print "from SSA:"
+    let (m', sif) = evalState (fromSSA m ssa) (-1000)
+    pp m'
+    mapM_ (\(v,b) -> print v >> print (pretty . Vertical . fromBlock $ b)) $ toList . blocks $ sif
