@@ -7,7 +7,7 @@ module ControlFlowGraph
 , succs, preds
 , reachable
 , dominators, idominators, dominanceFrontier
-, mapBlocks
+, mapBlocks, modifyNode
 ) where
 
 import InstructionSet
@@ -33,6 +33,8 @@ instance Functor CFG where
   fmap f (CFG entry blocks edges) = CFG entry (fmap (fmap f) blocks) edges
 
 mapBlocks f (CFG entry blocks edges) = CFG entry (M.mapWithKey f blocks) edges
+
+modifyNode f v cfg = mapBlocks (\v' b -> if v' == v then f b else b) cfg
 
 vertices = M.keys . blocks
 
