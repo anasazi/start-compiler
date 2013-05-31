@@ -188,10 +188,17 @@ instructionSIF2SSA i@(SIFInstruction loc opc) = SSAInstruction loc (assignsToSIF
 --fromSSA :: CFG SSA -> CFG SIFInstruction
 fromSSA = hole
 {- general plan for converting from SSA to SIF
-  1. convert all assignments to stack variables into assignments to registers.
-     update uses of the stack variables into uses of the new registers.
-     (uses of initial parameter vaules are not changed)
-  2. TODO
+  1. convert assignments to stack variables into assignments to registers (and update uses accordingly).
+     record the old stack variable for phi assignments.
+     (initial parameter values will remain as stack variables)
+  2. replace each phi with a copy from the old stack variable in the node AND copies to the old stack variable in the predecessors (last instructions before a jump).
+     (the stack variable isn't used anywhere else because of step 1)
+  3. propagate copies to registers by replacing uses of that register with the copied value and removing the assignment. iterate until fixed point.
+     (only copies into the stack variables used for phi nodes will be left)
+  4. replace remaining copies (all to stack variables) with moves. unwrap all other SIF opcodes.
+     (there should be no phi opcodes left)
+  5. update method declaration with the new local variables (one per phi node).
+     (parameters in method declaration are unchanged)
 -}
 
 -- The SSA data structures
