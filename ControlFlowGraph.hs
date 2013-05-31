@@ -1,5 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 module ControlFlowGraph 
 ( Vertex(..), Edge(..)
 , CFG, buildCFG, linearize
@@ -8,6 +11,7 @@ module ControlFlowGraph
 , reachable
 , dominators, idominators, dominanceFrontier
 , mapBlocks, modifyNode
+, goesTo
 ) where
 
 import InstructionSet
@@ -20,6 +24,8 @@ import Control.Arrow
 import Control.Monad
 import Control.Applicative
 import Data.Array
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 newtype Vertex = Vertex Integer deriving (Eq, Ord, Enum, Show)
 data Edge = Leap Vertex | Fall Vertex deriving (Eq, Ord, Show)
@@ -28,9 +34,7 @@ data CFG i = CFG
   , blocks :: M.Map Vertex (BasicBlock i)
   , edges :: M.Map Vertex (S.Set Edge)
   }
-  deriving Show
-instance Functor CFG where
-  fmap f (CFG entry blocks edges) = CFG entry (fmap (fmap f) blocks) edges
+  deriving (Show, Functor, Foldable, Traversable)
 
 mapBlocks f (CFG entry blocks edges) = CFG entry (M.mapWithKey f blocks) edges
 
@@ -38,8 +42,6 @@ modifyNode f v cfg = mapBlocks (\v' b -> if v' == v then f b else b) cfg
 
 vertices = M.keys . blocks
 
---goesTo (Leap x) = x
---goesTo (Fall x) = x
 goesTo = edge id id
 
 edge jump _ (Leap x) = jump x
@@ -59,6 +61,7 @@ fixEq f v | v' == v   = v
 	  | otherwise = fixEq f v'
   where v' = f v
 
+-- v -> things v is dominated by
 dominators :: CFG i -> M.Map Vertex (S.Set Vertex)
 dominators cfg = 
   let ivs = zip [0..] $ entry cfg : L.delete (entry cfg) (vertices cfg)
@@ -75,12 +78,14 @@ dominators cfg =
 head' [] = Nothing
 head' (x:_) = Just x
 
+-- v -> immediate dominator of v
 idominators :: CFG i -> M.Map Vertex (Maybe Vertex)
 idominators cfg =
   let doms = dominators cfg
       idoms = M.mapWithKey S.delete doms
   in M.map (\ids -> head' . M.keys . M.filter (==ids) $ doms) idoms
 
+-- v -> nodes where v's dominance ends
 dominanceFrontier :: CFG i -> M.Map Vertex (S.Set Vertex)
 dominanceFrontier cfg =
   let doms = dominators cfg

@@ -1,4 +1,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 module BasicBlock 
 ( BasicBlock, empty
 , leader, end, body
@@ -12,6 +15,8 @@ import Data.Function (on)
 import Data.List (nub, groupBy)
 import Data.Maybe (catMaybes, fromJust)
 import Control.Arrow
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 {- A non-empty straight-line sequence of instructions without control 
  - flow between them. The first instruction (leader) is 
@@ -27,9 +32,7 @@ data BasicBlockExit =
   | Branch Integer Integer 
   deriving (Eq, Show)
 
-data BasicBlock i = BB [i] BasicBlockExit deriving (Eq, Show)
-instance Functor BasicBlock where
-  fmap f (BB is ex) = BB (fmap f is) ex
+data BasicBlock i = BB [i] BasicBlockExit deriving (Eq, Show, Functor, Foldable, Traversable)
 
 modifyBlock f (BB is ex) = BB (f is) ex
 

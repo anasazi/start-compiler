@@ -1,9 +1,14 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {- Start Intermediate Format data structures -}
 module SIF where
 
 import Pretty
 import Text.PrettyPrint.HughesPJ
 import InstructionSet
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 type SIFNum = Integer 
 
@@ -42,14 +47,7 @@ data SIFOpcode a =
   | Binary SIFBinary a {- left input -} a {- right input -} SIFType {- return type -} 
   | Branch (SIFBranch a) a {- target location -} 
   | NOP 
-  deriving Show
-
-instance Functor SIFOpcode where
-  fmap f (SideEffect op) = SideEffect $ fmap f op
-  fmap f (Unary op i t) = Unary op (f i) t
-  fmap f (Binary op l r t) = Binary op (f l) (f r) t
-  fmap f (Branch op t) = Branch (fmap f op) (f t)
-  fmap f NOP = NOP
+  deriving (Show, Functor, Foldable, Traversable)
 
 data SIFSideEffect a = 
     Call a {- location -}
@@ -63,29 +61,11 @@ data SIFSideEffect a =
   | Ret a {- bytes to pop for formal parameters -}
   | Param a {- value to push onto stack -}
   | Entrypc
-  deriving Show
-
-instance Functor SIFSideEffect where
-  fmap f (Call x) = Call $ f x
-  fmap f (Store x y) = Store (f x) (f y)
-  fmap f (Move x y) = Move (f x) (f y)
-  fmap f (Checkbounds x y) = Checkbounds (f x) (f y)
-  fmap f (StoreDynamic x y z) = StoreDynamic (f x ) (f y) (f z)
-  fmap f (Write x) = Write $ f x
-  fmap f Newline = Newline
-  fmap f (Enter x) = Enter $ f x
-  fmap f (Ret x) = Ret $ f x
-  fmap f (Param x) = Param $ f x
-  fmap f Entrypc = Entrypc
+  deriving (Show, Functor, Foldable, Traversable)
 
 data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving Show
 data SIFBinary = Add | Sub | Mul | Div | Mod | Equal | LessEqual | Less | Istype | Checktype | LoadDyanmic deriving Show
-data SIFBranch a = Jump | IfZero a {- test -} | IfSet a {- test -} deriving Show
-
-instance Functor SIFBranch where
-  fmap f Jump = Jump
-  fmap f (IfZero x) = IfZero $ f x
-  fmap f (IfSet x) = IfSet $ f x
+data SIFBranch a = Jump | IfZero a {- test -} | IfSet a {- test -} deriving (Show, Functor, Foldable, Traversable)
 
 data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving (Eq, Ord, Show)
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
