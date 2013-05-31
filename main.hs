@@ -8,6 +8,7 @@ import Data.Map
 import Control.Monad
 import Control.Arrow
 import StaticSingleAssignment
+import Control.Monad.State
 
 pp :: Pretty a => a -> IO ()
 pp = print . pretty
@@ -37,9 +38,12 @@ printCFGs ast@(SIFProgram ts ms gs is)  = do
     let df = dominanceFrontier cfg
     mapM_ print $ toList df
     print "as SSA structure:"
-    let ssa = toSSA cfg
+    let ssa = evalState (toSSA cfg) (-100)
     mapM_ (\(v,b) -> print v >> print (f b)) $ toList . blocks $ ssa
-      where f = pretty . Vertical . fromBlocks . (:[])
+      where f = pretty . Vertical . fromBlock
+--    let ssa = toSSA cfg
+ --   mapM_ (\(v,b) -> print v >> print (f b)) $ toList . blocks $ ssa
+  --    where f = pretty . Vertical . fromBlocks . (:[])
     
   {-
   let rs' = fmap (fromBlocks . linearize) cfgs

@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module StaticSingleAssignment 
 ( toSSA, fromSSA
 , SSAInstruction
@@ -12,6 +13,8 @@ import Control.Monad.State
 import Pretty
 import Text.PrettyPrint.HughesPJ
 import BasicBlock
+import qualified Data.Traversable as T
+import Control.Arrow hiding ((<+>))
 
 data Hole = Hole
 hole = undefined
@@ -19,28 +22,60 @@ hole = undefined
 toSSA :: CFG SIFInstruction -> State SIFLocation (CFG (SSAInstruction SIFLocation))
 toSSA cfg = do
   let restructured = fmap instructionSIF2SSA cfg
-  let df = dominanceFrontier restructured
-  let sv = fmap stackVars $ blocks restructured
-  let insertionLocations v = S.unions . fmap (sv M.!) . M.keys . M.filter (S.member v) $ df
-  let workToDo = M.fromList [ (v, insertionLocations v) | v <- vertices restructured ]
-  let toBeInserted = hole -- list of instructions to insert at the start of the block (after enter/entrypc)
-  let inserted = mapBlocks (\v b -> insertPhis (toBeInserted v) b) restructured
-  hole
+  fmap renamePhis $ insertPhis restructured
 
-insertPhis = hole
+-- inserting phis where needed
+insertPhis :: CFG (SSAInstruction ()) -> State SIFLocation (CFG (SSAInstruction ()))
+insertPhis cfg = do
+  let df = dominanceFrontier cfg
+  let sv = fmap stackVars $ blocks cfg
+  let insertionLocations v = S.unions . fmap (sv M.!) . M.keys . M.filter (S.member v) $ df
+  let workToDo = M.fromList [ (v, insertionLocations v) | v <- vertices cfg ]
+  toBeInserted <- T.mapM (mapM createPhi . S.toList) workToDo
+  let inserted = mapBlocks (\v b -> modifyBlock (insertAfterEnter $ toBeInserted M.! v) b) cfg
+  return inserted
 
 stackVars = S.fromList . fmap target . filter isStackAssignment . body
-  where isStackAssignment (SSAInstruction _ (Just (Local _ _ _)) _) = True
+  where isStackAssignment (SSAInstruction _ (Just (Local{})) _) = True
 	isStackAssignment _ = False
 	target (SSAInstruction _ (Just x) _) = x
 
+insertAfterEnter xs is = let (pre,suf) = span isEnter is in pre ++ xs ++ suf
+  where isEnter (SSAInstruction _ _ opc) =
+	  case opc of
+	    SIF (SideEffect (Enter _)) -> True
+	    SIF (SideEffect Entrypc) -> True
+	    _ -> False
+
+createPhi var = do
+  loc <- get
+  modify (+1)
+  return $ SSAInstruction loc (Just var) (Phi M.empty)
+
+-- renaming vars wth subscripts
+renamePhis :: CFG (SSAInstruction ()) -> CFG (SSAInstruction SIFLocation)
+renamePhis cfg = hole
+
+genName var = do
+  (i,_) <- fmap (M.!var) get
+  modify $ M.adjust ((+1) *** (i:)) var
+  return $ fmap (const i) var
+
+replaceVar var = do
+  (_,(i:_)) <- fmap (M.!var) get
+  return $ fmap (const i) var
+
+popVar var = do
+  modify $ M.adjust (second tail) var
+
+-- moving data types from SIF to SSA
 varSIF2SSA (Register loc) = Just $ Reg loc
 varSIF2SSA (Stack var off) = Just $ Local var off ()
 varSIF2SSA _ = Nothing
 
 assignsToSIF (SIFInstruction _ (SideEffect (Move _ x))) = varSIF2SSA x
-assignsToSIF (SIFInstruction x (Unary _ _ _)) = Just $ Reg x
-assignsToSIF (SIFInstruction x (Binary _ _ _ _)) = Just $ Reg x
+assignsToSIF (SIFInstruction x (Unary{})) = Just $ Reg x
+assignsToSIF (SIFInstruction x (Binary{})) = Just $ Reg x
 assignsToSIF _ = Nothing
 
 operandSIF2SSA oper = maybe (Val oper) Var (varSIF2SSA oper)
@@ -58,18 +93,32 @@ data SSAVar a =
     Reg SIFLocation -- a register
   | Local SIFIdentifier SIFOffset a -- a local or parameter
   deriving (Show, Eq, Ord)
+instance Functor SSAVar where
+  fmap f (Local ident off x) = Local ident off $ f x
+  fmap f (Reg loc) = Reg loc
+
 data SSAOperand a = 
     Var (SSAVar a) -- equivalent of Stack and Register
   | Val SIFOperand -- no Stack or Register uses
   deriving Show
+instance Functor SSAOperand where
+  fmap f (Var ssavar) = Var $ fmap f ssavar
+  fmap f (Val sifoper) = Val sifoper
+
 data SSAOpcode a = 
     Phi (M.Map Vertex (SSAVar a))	  
   | SIF (SIFOpcode (SSAOperand a)) -- no uses of Move. either sets a register or has an effect
   | Copy (SSAOperand a) -- equivalent of Move, but also allows for copying into a register
   deriving Show
+instance Functor SSAOpcode where
+  fmap f (Phi inc) = Phi $ fmap (fmap f) inc
+  fmap f (SIF sif) = SIF $ fmap (fmap f) sif
+  fmap f (Copy oper) = Copy $ fmap f oper
 
 data SSAInstruction a = SSAInstruction SIFLocation (Maybe (SSAVar a)) (SSAOpcode a)
   deriving Show
+instance Functor SSAInstruction where
+  fmap f (SSAInstruction loc tar opc) = SSAInstruction loc (fmap (fmap f) tar) (fmap f opc)
 
 instance InstructionSet (SSAInstruction a) where
   loc (SSAInstruction x _ _) = x
