@@ -6,6 +6,7 @@
 module StaticSingleAssignment 
 ( toSSA, fromSSA
 , SSAInstruction
+, allToSSA
 ) where
 
 import SIF
@@ -23,9 +24,16 @@ import qualified Data.Foldable as F
 import Data.Foldable (Foldable)
 import Control.Arrow hiding ((<+>))
 import Data.Maybe (fromJust)
+import Routine
 
 data Hole = Hole
 hole = undefined
+
+allToSSA :: Routines (CFG SIFInstruction) -> Routines (CFG (SSAInstruction Integer))
+allToSSA rs =
+  let nextInstr = 1 + maxLocCFG rs
+      rsWithMethods = M.mapWithKey (\k v -> (k, v)) rs
+  in evalState (T.mapM (uncurry toSSA) rsWithMethods) nextInstr
 
 toSSA :: SIFMethodDecl -> CFG SIFInstruction -> State SIFLocation (CFG (SSAInstruction Integer))
 toSSA (SIFMethodDecl _ _ params) cfg = do

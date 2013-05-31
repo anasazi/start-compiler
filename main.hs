@@ -20,10 +20,13 @@ main = do
 
 printCFGs ast@(SIFProgram ts ms gs is)  = do
   let rs = routines ast
+  let nextInstr = 1 + maxLocBlocks rs
   let cfgs = fmap buildCFG rs
-  forM_ (toList cfgs) $ \(m, cfg) -> do
-    let v2l = fromList $ fmap (id &&& leader . ((blocks cfg) !)) (vertices cfg)
+  let ssas = allToSSA cfgs
+  --forM_ (toList cfgs) $ \(m, cfg) -> do
+  forM_ (toList ssas) $ \(m, ssa) -> do
     {-
+    let v2l = fromList $ fmap (id &&& leader . ((blocks cfg) !)) (vertices cfg)
     pp m
     print "vertex -> location:"
     mapM_ print $ toList v2l
@@ -40,11 +43,10 @@ printCFGs ast@(SIFProgram ts ms gs is)  = do
     mapM_ print $ toList df
     -}
     print "as SSA structure:"
-    let ssa = evalState (toSSA m cfg) (-100)
+--    let ssa = evalState (toSSA m cfg) (-100)
     mapM_ (\(v,b) -> print v >> print (f b)) $ toList . blocks $ ssa
       where f = pretty . Vertical . fromBlock
 
-  let nextInstr = 
     
   {-
   let rs' = fmap (fromBlocks . linearize) cfgs
