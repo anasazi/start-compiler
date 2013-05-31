@@ -34,7 +34,7 @@ data CFG i = CFG
   , blocks :: M.Map Vertex (BasicBlock i)
   , edges :: M.Map Vertex (S.Set Edge)
   }
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 mapBlocks f (CFG entry blocks edges) = CFG entry (M.mapWithKey f blocks) edges
 
