@@ -20,6 +20,6 @@ routines (SIFProgram _ ms _ is) = fromList [ (m, b) | m <- ms, b <- grouper bs, 
 	ls = fmap mloc ms :: [SIFLocation]
 	grouper bs = case bs of 
 	  [] -> []
-	  (b:bs) | isEntry b -> let (xs,ys) = span (not . isEntry) bs in (b : xs) : grouper ys
+	  (b:bs) | isEntry b -> let (xs,ys) = break isEntry bs in (b : xs) : grouper ys
 		 | otherwise -> grouper $ dropWhile (not . isEntry) bs
 		    where isEntry b = loc (leader b) `elem` ls

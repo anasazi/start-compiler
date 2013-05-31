@@ -26,7 +26,7 @@ brackets = between (char '[') (char ']')
 idFirst = letter <|> char '_'
 idRest	= idFirst <|> digit
 
-identiferSuffix suf = (:) <$> idFirst <*> (manyTill idRest $ try suf)
+identiferSuffix suf = (:) <$> idFirst <*> manyTill idRest (try suf)
 
 identifier = (:) <$> idFirst <*> many idRest
 
@@ -41,7 +41,7 @@ staticField   = varWithOffset (string "_offset#") StaticField
 dynamicField  = DynamicField <$> identiferSuffix (string "_offset#?")
 stack	      = Stack <$> identifier <*> (hash >> offset)
 register      = Register <$> parens location 
-typeuse	      = Type <$> (identiferSuffix $ string "_type#") <*> size
+typeuse	      = Type <$> identiferSuffix (string "_type#") <*> size
 codelabel     = Label <$> brackets location
 
 operand = choice (map try [global, frame, constant, address, staticField, dynamicField, register, typeuse, stack, codelabel]) <?> "operand"
@@ -125,4 +125,4 @@ instruction = SIFInstruction <$> (string "instr" >> aspace >> location) <*> (col
 
 -- the whole program
 lots x = sepEndBy x (newline >> spaces)
-program = SIFProgram <$> (spaces >> lots typeDecl) <*> (lots methodDecl) <*> (lots globalDecl) <*> (lots instruction)
+program = SIFProgram <$> (spaces >> lots typeDecl) <*> lots methodDecl <*> lots globalDecl <*> lots instruction

@@ -71,7 +71,7 @@ toBlocks is = map wrap blockified
 	isLeader = (`elem` leaders) . loc
 	f :: InstructionSet i => [i] -> [([i],Maybe Integer)]
 	f [] = []
-	f (x:xs) = let (ys,zs) = break isLeader xs in ((x : ys), g zs) : f zs
+	f (x:xs) = let (ys,zs) = break isLeader xs in (x : ys, g zs) : f zs
 	    where
 	    g :: InstructionSet i => [i] -> Maybe Integer
 	    g [] = Nothing

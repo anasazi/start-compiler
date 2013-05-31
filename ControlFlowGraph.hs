@@ -44,10 +44,10 @@ edge jump _ (Leap x) = jump x
 edge _ fall (Fall x) = fall x
 
 succs :: CFG i -> Vertex -> S.Set Edge
-succs cfg v = (edges cfg) M.! v
+succs cfg v = edges cfg M.! v
 
 preds :: CFG i -> Vertex -> S.Set Edge
-preds cfg v = S.fromList . swapAround . trimDown . predEntries $ (edges cfg)
+preds cfg v = S.fromList . swapAround . trimDown . predEntries $ edges cfg
   where predEntries = M.filter (S.member v . S.map goesTo)
 	trimDown = M.map (S.filter ((==v) . goesTo))
 	swapAround = fmap (\(k,v) -> edge (const $ Leap k) (const $ Fall k) (head . S.toList $ v)) . M.toList
@@ -76,7 +76,7 @@ head' (x:_) = Just x
 idominators :: CFG i -> M.Map Vertex (Maybe Vertex)
 idominators cfg =
   let doms = dominators cfg
-      idoms = M.mapWithKey (\v ds -> S.delete v ds) $ doms
+      idoms = M.mapWithKey S.delete doms
   in M.map (\ids -> head' . M.keys . M.filter (==ids) $ doms) idoms
 
 dominanceFrontier :: CFG i -> M.Map Vertex (S.Set Vertex)
