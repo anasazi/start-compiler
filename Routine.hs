@@ -2,6 +2,7 @@
 module Routine
 ( Routines
 , routines
+, maxLocCFG, maxLocBlocks
 ) where
 
 import InstructionSet
@@ -12,6 +13,10 @@ import Data.List
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 import Data.Ord (comparing)
+import ControlFlowGraph
+
+hole = undefined
+data Hole = Hole
 
 type Routines i = Map SIFMethodDecl i
 
@@ -27,6 +32,10 @@ routines (SIFProgram _ ms _ is) = fromList [ (m, b) | m <- ms, b <- grouper bs, 
 		 | otherwise -> grouper $ dropWhile (not . isEntry) bs
 		    where isEntry b = loc (leader b) `elem` ls
 
-maxLoc :: InstructionSet i => Routines [BasicBlock i] -> SIFLocation
-maxLoc = undefined
---maxLoc rs = loc $ F.maximumBy (comparing loc) rs
+maxLocCFG :: (InstructionSet i) => Routines (CFG i) -> SIFLocation
+maxLocCFG = loc . f . (fmap f)
+  where f = F.maximumBy (comparing loc)
+
+maxLocBlocks :: (InstructionSet i) => Routines [BasicBlock i] -> SIFLocation
+maxLocBlocks = loc . f . fmap f . fmap (fmap f)
+  where f = F.maximumBy (comparing loc)
