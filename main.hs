@@ -38,7 +38,7 @@ printCFGs ast@(SIFProgram ts ms gs is)  = do
     let df = dominanceFrontier cfg
     mapM_ print $ toList df
     print "as SSA structure:"
-    let ssa = evalState (toSSA cfg) (-100)
+    let ssa = evalState (toSSA m cfg) (-100)
     mapM_ (\(v,b) -> print v >> print (f b)) $ toList . blocks $ ssa
       where f = pretty . Vertical . fromBlock
 --    let ssa = toSSA cfg

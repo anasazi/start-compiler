@@ -1,4 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE BangPatterns #-}
 module StaticSingleAssignment 
 ( toSSA, fromSSA
 , SSAInstruction
@@ -14,18 +18,26 @@ import Pretty
 import Text.PrettyPrint.HughesPJ
 import BasicBlock
 import qualified Data.Traversable as T
+import Data.Traversable (Traversable)
+import qualified Data.Foldable as F
+import Data.Foldable (Foldable)
 import Control.Arrow hiding ((<+>))
+import Data.Maybe (fromJust)
+import Debug.Trace (trace)
 
 data Hole = Hole
 hole = undefined
 
-toSSA :: CFG SIFInstruction -> State SIFLocation (CFG (SSAInstruction SIFLocation))
-toSSA cfg = do
+toSSA :: SIFMethodDecl -> CFG SIFInstruction -> State SIFLocation (CFG (SSAInstruction Integer))
+toSSA (SIFMethodDecl _ _ params) cfg = do
   let restructured = fmap instructionSIF2SSA cfg
-  fmap renamePhis $ insertPhis restructured
+  inserted <- insertPhis restructured
+  let renamed = renamePhis params inserted
+  return renamed
+  --fmap (renamePhis params) $ insertPhis restructured
 
 -- inserting phis where needed
-insertPhis :: CFG (SSAInstruction ()) -> State SIFLocation (CFG (SSAInstruction ()))
+insertPhis :: CFG (SSAInstruction (Maybe Integer)) -> State SIFLocation (CFG (SSAInstruction (Maybe Integer)))
 insertPhis cfg = do
   let df = dominanceFrontier cfg
   let sv = fmap stackVars $ blocks cfg
@@ -53,38 +65,91 @@ createPhi var = do
   return $ SSAInstruction loc (Just var) (Phi M.empty)
 
 -- renaming vars wth subscripts
-renamePhis :: CFG (SSAInstruction ()) -> CFG (SSAInstruction SIFLocation)
-renamePhis cfg =
-  let vars = S.toList . S.unions . fmap stackVars . M.elems . blocks $ cfg
-      state = M.fromList [ (v, (0, [])) | v <- vars ]
-  in evalState (rename cfg (entry cfg)) state
+renamePhis :: [SIFVarDecl] -> CFG (SSAInstruction (Maybe Integer)) -> CFG (SSAInstruction Integer)
+renamePhis params cfg =
+  let paramsAsVars = S.fromList [ (Local ident off Nothing) | (SIFVarDecl ident off _) <- params ] :: S.Set (SSAVar (Maybe Integer))
+      usedVars = (S.unions . fmap stackVars . M.elems . blocks $ cfg) S.\\ paramsAsVars
+      state = M.fromList $ [ ((ident, off), (1, [0])) | (Local ident off Nothing) <- S.toList paramsAsVars ] 
+			++ [ ((ident, off), (0, [])) | (Local ident off Nothing) <- S.toList usedVars ]
+      renamed = evalState (rename cfg (entry cfg)) state
+  in makeCertain renamed
 
-rename :: CFG (SSAInstruction ()) -> Vertex -> State (M.Map (SSAVar ()) (Integer, [Integer])) (CFG (SSAInstruction SIFLocation))
-rename cfg v = do
+makeCertain = fmap (fmap fromJust)
+
+rename :: CFG (SSAInstruction (Maybe Integer)) -> Vertex -> State RenameState (CFG (SSAInstruction (Maybe Integer)))
+rename !cfg v = do
   -- get block v
-  let b = blocks cfg M.! v
   -- generate a name for the target of each phi node
   -- replace variables used and generate names for variables assigned to in block
+  renamedNodes <- T.forM (blocks cfg M.! v) renameInstruction
+  let cfg' = modifyNode (const renamedNodes) v cfg
   -- update the phi nodes of CFG successors
+  let children = fmap (id &&& (blocks cfg' M.!)) . S.toList . S.map goesTo $ succs cfg' v
+  children' <- T.mapM (\(c,b) ->  markPhis v b >>= \b' -> return (c,b')) children
+  let cfg'' = F.foldl' (\g (c,b) -> modifyNode (const b) c g) cfg' children'
   -- recurse into children in dominator tree
+  let idoms = idominators cfg''
+  let dominated = M.keys $ M.filter (maybe False (==v)) idoms
+  cfg''' <- F.foldlM rename cfg'' dominated
   -- pop variables defined in block
-  hole
+  F.mapM_ popPhi $ body (blocks cfg''' M.! v)
+  return $ trace ("renamed " ++ show v ++ " " ++ show cfg') cfg'''
 
-genName var = do
-  (i,_) <- fmap (M.!var) get
-  modify $ M.adjust ((+1) *** (i:)) var
-  return $ fmap (const i) var
+type RenameState = M.Map (SIFIdentifier, SIFOffset) (Integer, [Integer])
 
-replaceVar var = do
-  (_,(i:_)) <- fmap (M.!var) get
-  return $ fmap (const i) var
+popPhi :: SSAInstruction (Maybe Integer) -> State RenameState ()
+popPhi (SSAInstruction _ (Just tar) (Phi _)) = popVar tar
+popPhi _ = return ()
 
-popVar var = do
-  modify $ M.adjust (second tail) var
+markPhis :: Vertex -> BasicBlock (SSAInstruction (Maybe Integer)) ->
+	    State RenameState (BasicBlock (SSAInstruction (Maybe Integer)))
+markPhis p b = T.forM b $ \i@(SSAInstruction loc tar opc) -> do
+  case opc of
+    Phi inc -> do
+      let (Just to) = tar
+      from <- replaceVar to
+      let inc = M.insert p from inc
+      return $ SSAInstruction loc tar $ Phi inc
+    _ -> return i
+    
+renameInstruction :: SSAInstruction (Maybe Integer) -> State RenameState (SSAInstruction (Maybe Integer))
+renameInstruction (SSAInstruction loc tar opc) = do
+  tar' <- renameSet tar
+  case opc of
+    Phi _ -> return $ SSAInstruction loc tar' opc 
+    SIF sif -> T.mapM renameUse sif >>= \sif' -> return $ SSAInstruction loc tar' (SIF sif')
+    Copy val -> renameUse val >>= \val' -> return $ SSAInstruction loc tar' (Copy val')
+
+renameUse :: SSAOperand (Maybe Integer) -> State RenameState (SSAOperand (Maybe Integer))
+renameUse (Var var@(Local _ _ Nothing)) = fmap Var $ replaceVar var 
+renameUse x = return x
+
+renameSet :: Maybe (SSAVar (Maybe Integer)) -> State RenameState (Maybe (SSAVar (Maybe Integer)))
+renameSet (Just var@(Local{})) = fmap Just $ genName var 
+renameSet (Just var) = return $ Just var
+renameSet Nothing = return Nothing
+
+genName :: SSAVar (Maybe Integer) -> State RenameState (SSAVar (Maybe Integer))
+genName (Local ident off Nothing) = do
+  let key = (ident, off)
+  (i,_) <- fmap (M.! key) get
+  modify $ M.adjust ((+1) *** (i:)) key
+  return $ Local ident off (Just i)
+
+replaceVar :: SSAVar (Maybe Integer) -> State RenameState (SSAVar (Maybe Integer))
+replaceVar (Local ident off Nothing) = do
+  let key = (ident, off)
+  (_,(i:_)) <- fmap (M.!key) get
+  return $ Local ident off (Just i)
+
+popVar :: SSAVar (Maybe Integer) -> State RenameState ()
+popVar (Local ident off _) = do
+  let key = (ident, off)
+  modify $ M.adjust (second tail) key
 
 -- moving data types from SIF to SSA
 varSIF2SSA (Register loc) = Just $ Reg loc
-varSIF2SSA (Stack var off) = Just $ Local var off ()
+varSIF2SSA (Stack var off) = Just $ Local var off (Nothing :: Maybe Integer)
 varSIF2SSA _ = Nothing
 
 assignsToSIF (SIFInstruction _ (SideEffect (Move _ x))) = varSIF2SSA x
@@ -106,33 +171,21 @@ fromSSA = hole
 data SSAVar a = 
     Reg SIFLocation -- a register
   | Local SIFIdentifier SIFOffset a -- a local or parameter
-  deriving (Show, Eq, Ord)
-instance Functor SSAVar where
-  fmap f (Local ident off x) = Local ident off $ f x
-  fmap f (Reg loc) = Reg loc
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 data SSAOperand a = 
     Var (SSAVar a) -- equivalent of Stack and Register
   | Val SIFOperand -- no Stack or Register uses
-  deriving Show
-instance Functor SSAOperand where
-  fmap f (Var ssavar) = Var $ fmap f ssavar
-  fmap f (Val sifoper) = Val sifoper
+  deriving (Show, Functor, Foldable, Traversable)
 
 data SSAOpcode a = 
     Phi (M.Map Vertex (SSAVar a))	  
   | SIF (SIFOpcode (SSAOperand a)) -- no uses of Move. either sets a register or has an effect
   | Copy (SSAOperand a) -- equivalent of Move, but also allows for copying into a register
-  deriving Show
-instance Functor SSAOpcode where
-  fmap f (Phi inc) = Phi $ fmap (fmap f) inc
-  fmap f (SIF sif) = SIF $ fmap (fmap f) sif
-  fmap f (Copy oper) = Copy $ fmap f oper
+  deriving (Show, Functor, Foldable, Traversable)
 
 data SSAInstruction a = SSAInstruction SIFLocation (Maybe (SSAVar a)) (SSAOpcode a)
-  deriving Show
-instance Functor SSAInstruction where
-  fmap f (SSAInstruction loc tar opc) = SSAInstruction loc (fmap (fmap f) tar) (fmap f opc)
+  deriving (Show, Functor, Foldable, Traversable)
 
 instance InstructionSet (SSAInstruction a) where
   loc (SSAInstruction x _ _) = x
