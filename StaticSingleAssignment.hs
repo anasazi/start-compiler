@@ -6,7 +6,7 @@
 module StaticSingleAssignment 
 ( toSSA, fromSSA
 , SSAInstruction
-, allToSSA
+, allToSSA, allFromSSA
 ) where
 
 import SIF
@@ -44,9 +44,6 @@ toSSA (SIFMethodDecl _ _ paramsAndVars) cfg = do
   inserted <- insertPhis restructured
   let params = [ param | param@(SIFVarDecl _ off _) <- paramsAndVars, off > 0 ]
   let renamed = renamePhis params inserted
-  --let updatedLeaders = M.fromList [(loc . leader $ blocks cfg M.! v, loc . leader $ blocks renamed M.! v) | v <- vertices cfg ]
-  --let fixedJumps = updateLabels updatedLeaders renamed
-  --return fixedJumps
   return $ fixJumps cfg renamed
 
 fixJumps old new =
@@ -115,7 +112,7 @@ rename !cfg v = do
   let cfg' = modifyNode (const renamedNodes) v cfg
   -- update the phi nodes of CFG successors
   let children = fmap (id &&& (blocks cfg' M.!)) . S.toList . S.map goesTo $ succs cfg' v
-  children' <- T.mapM (\(c,b) ->  markPhis v b >>= \b' -> return (c,b')) children
+  children' <- T.mapM (\(c,b) -> markPhis v b >>= \b' -> return (c,b')) children
   let cfg'' = F.foldl' (\g (c,b) -> modifyNode (const b) c g) cfg' children'
   -- recurse into children in dominator tree
   let idoms = idominators cfg''
@@ -131,8 +128,7 @@ popPhi :: SSAInstruction (Maybe Integer) -> State RenameState ()
 popPhi (SSAInstruction _ (Just tar) (Phi _)) = popVar tar
 popPhi _ = return ()
 
-markPhis :: Vertex -> BasicBlock (SSAInstruction (Maybe Integer)) ->
-	    State RenameState (BasicBlock (SSAInstruction (Maybe Integer)))
+markPhis :: Vertex -> BasicBlock (SSAInstruction (Maybe Integer)) -> State RenameState (BasicBlock (SSAInstruction (Maybe Integer)))
 markPhis p b = T.forM b $ \i@(SSAInstruction loc tar opc) -> do
   case opc of
     Phi inc -> do
@@ -172,7 +168,7 @@ genName (Local ident off typ Nothing) = do
   return $ Local ident off typ (Just i)
 
 replaceVar :: SSAVar (Maybe Integer) -> State RenameState (SSAVar (Maybe Integer))
-replaceVar (Local ident off typ Nothing) = do
+replaceVar var@(Local ident off typ _) = do
   let key = (ident, off)
   (_,(i:_)) <- fmap (M.!key) get
   return $ Local ident off typ (Just i)
@@ -202,7 +198,14 @@ opcodeSIF2SSA vars opc = SIF $ fmap (operandSIF2SSA vars) opc
 
 instructionSIF2SSA vars i@(SIFInstruction loc opc) = SSAInstruction loc (assignsToSIF vars i) (opcodeSIF2SSA vars opc)
 
-fromSSA :: SIFMethodDecl -> CFG (SSAInstruction Integer) -> State SIFLocation (SIFMethodDecl, CFG SIFInstruction)
+--allFromSSA :: Routines (CFG (SSAInstruction Integer)) -> Routines (CFG SIFInstruction)
+allFromSSA rs =
+  let nextInstr = 1 + maxLocCFG rs
+      old = M.toList rs
+      new = evalState (T.mapM (uncurry fromSSA) old) nextInstr
+  in M.fromList new
+
+--fromSSA :: SIFMethodDecl -> CFG (SSAInstruction Integer) -> State SIFLocation (SIFMethodDecl, CFG SIFInstruction)
 fromSSA method@(SIFMethodDecl loc name vars) cfg = do
 {- general plan for converting from SSA to SIF
   1. convert assignments to stack variables into assignments to registers (and update uses accordingly).
@@ -222,6 +225,7 @@ fromSSA method@(SIFMethodDecl loc name vars) cfg = do
      (only copies into the stack variables used for phi nodes will be left)
 -}
   let cfg'''' = copyPropagation cfg'''
+  --let cfg'''' = cfg'''
 {-
   4. replace remaining copies (all to stack variables) with moves. unwrap all other SIF opcodes.
      (there should be no phi opcodes left)
@@ -249,6 +253,7 @@ operandSSA2SIF _ (Val val) = val
 
 opcodeSSA2SIF _ _ (Phi _) = error "there should not be any phi nodes"
 opcodeSSA2SIF _ newOffs (SIF sif) = fmap (operandSSA2SIF newOffs) sif
+opcodeSSA2SIF (Just (Reg tar)) newOffs (Copy val) = Binary Add (operandSSA2SIF newOffs val) (Constant 0) Dynamic
 opcodeSSA2SIF (Just tar) newOffs (Copy val) = SideEffect (Move (operandSSA2SIF newOffs val) (varSSA2SIF newOffs tar))
 
 instructionSSA2SIF newOffs (SSAInstruction loc tar opc) = SIFInstruction loc (opcodeSSA2SIF tar newOffs opc)
@@ -265,14 +270,14 @@ copyPropagationOnce cfg =
   let withoutCopies = mapBlocks (\_ b -> modifyBlock (filter needToKeep) b) cfg
       allCopies = filter isCopyToReg . fromBlocks . M.elems $ blocks cfg
       old2new = M.fromList $ fmap (\(SSAInstruction _ (Just reg) (Copy val)) -> (reg, val)) allCopies
-      subbed =  fixEq (subUses' old2new) withoutCopies
+      subbed =  fixEq (subUses' old2new) withoutCopies -- TODO do dead code elimination separately
   in fixJumps cfg subbed
   where
   isCopyToReg (SSAInstruction _ (Just (Reg _)) (Copy _)) = True
   isCopyToReg _ = False
-  isCopyToSelf (SSAInstruction _ (Just tar) (Copy (Var src))) | tar == src = True
-  isCopyToSelf _ = False
-  needToKeep i = not $ isCopyToReg i || isCopyToSelf i
+  --isCopyToSelf (SSAInstruction _ (Just tar) (Copy (Var src))) | tar == src = True
+  --isCopyToSelf _ = False
+  needToKeep i = not $ isCopyToReg i -- || isCopyToSelf i
 
 fixEq :: Eq a => (a -> a) -> a -> a
 fixEq f v | v' == v   = v
