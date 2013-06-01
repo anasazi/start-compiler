@@ -3,11 +3,13 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 module BasicBlock 
-( BasicBlock, empty
+( BasicBlock--, empty
 , leader, end, body
 , fallsTo, jumpsTo, label, locs
 , toBlocks, fromBlocks, fromBlock
-, validateBlock, modifyBlock
+, validateBlock
+, modifyBlock
+, exits
 ) where
 
 import InstructionSet
@@ -32,35 +34,34 @@ data BasicBlockExit =
   | Branch Integer Integer 
   deriving (Eq, Show)
 
-data BasicBlock i = BB [i] BasicBlockExit deriving (Eq, Show, Functor, Foldable, Traversable)
+data BasicBlock i = BB [i] deriving (Eq, Show, Functor, Foldable, Traversable)
 
-modifyBlock f (BB is ex) = BB (f is) ex
+modifyBlock f (BB is) = BB (f is)
 
-validateBlock b@(BB is ex) = [b] == toBlocks is
+validateBlock b@(BB is) = [b] == toBlocks is
 
-leader (BB is _) = head is
-end (BB is _) = last is
-exit (BB _ ex) = ex
-body (BB is _) = is
+leader (BB is) = head is
+end (BB is) = last is
+body (BB is) = is
 
 -- can this block fall off the end?
-fallsTo (BB _ (Fall x)) = Just x
-fallsTo (BB _ (Branch _ x)) = Just x
+fallsTo (Fall x) = Just x
+fallsTo (Branch _ x) = Just x
 fallsTo _ = Nothing
 -- where does this block jump to?
-jumpsTo (BB _ (Jump x)) = Just x
-jumpsTo (BB _ (Branch x _)) = Just x
+jumpsTo (Jump x) = Just x
+jumpsTo (Branch x _) = Just x
 jumpsTo _ = Nothing
 -- jump target label of this block
 label :: InstructionSet i => BasicBlock i -> Integer
 label = loc . leader
-locs (BB is _) = map loc is
+locs (BB is) = map loc is
 
-empty n m = BB [nop n] (Fall m)
+empty n = BB [nop n]
 
 -- Break an instruction stream into basic blocks
 toBlocks :: InstructionSet i => [i] -> [BasicBlock i]
-toBlocks is = map wrap blockified
+toBlocks is = map BB blockified
   where 
   leaders = nub $ entrypc ++ calls ++ jumps ++ falls
 	where 
@@ -72,22 +73,25 @@ toBlocks is = map wrap blockified
 	where
 	isLeader :: InstructionSet i => i -> Bool
 	isLeader = (`elem` leaders) . loc
-	f :: InstructionSet i => [i] -> [([i],Maybe Integer)]
+	f :: InstructionSet i => [i] -> [[i]]
 	f [] = []
-	f (x:xs) = let (ys,zs) = break isLeader xs in (x : ys, g zs) : f zs
-	    where
-	    g :: InstructionSet i => [i] -> Maybe Integer
-	    g [] = Nothing
-	    g (z:_) = Just $ loc z
-  wrap :: InstructionSet i => ([i], Maybe Integer) -> BasicBlock i
-  wrap (bb, next) | isRet     $ last bb = BB bb Return
-		  | isBranch  $ last bb = BB bb $ Branch (fromJust . target . last $ bb) (fromJust next)
-		  | isJump    $ last bb = BB bb $ Jump (fromJust . target . last $ bb)
-		  | canFall   $ last bb = BB bb $ maybe Cliff Fall next 
-		  | otherwise = error "impossible block ending"
+	f (x:xs) = let (ys,zs) = break isLeader xs in (x : ys) : f zs
+
+wrap :: InstructionSet i => BasicBlock i -> Maybe Integer -> BasicBlockExit
+wrap  bb next	| isRet     $ end bb = Return
+		| isBranch  $ end bb = Branch (fromJust . target . end $ bb) (fromJust next)
+		| isJump    $ end bb = Jump (fromJust . target . end $ bb)
+		| canFall   $ end bb = maybe Cliff Fall next 
+		| otherwise = error "impossible block ending"
+
+-- assumes that blocks are passed in their proper linear order
+exits :: InstructionSet i => [BasicBlock i] -> [BasicBlockExit]
+exits [] = []
+exits (a:[]) = [wrap a Nothing]
+exits (a:b:cs) = wrap a (Just $ label b) : exits (b:cs)
 
 -- Unwrap and concatenate the basic blocks
-fromBlock (BB is _) = is
+fromBlock (BB is) = is
 
 fromBlocks :: [BasicBlock i] -> [i]
 fromBlocks = concatMap fromBlock

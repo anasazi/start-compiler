@@ -103,10 +103,11 @@ buildCFG bs = reachable $ CFG entry blocks edges
   entry = Vertex 1
   vs = [entry..]
   l2v = M.fromList . concatMap (\(ls, v) -> [ (l,v) | l <- ls ]) $ zip (locs <$> bs) vs
-  blocks = M.fromList $ zip vs bs
-  edges = M.map (\b -> S.fromList . catMaybes $ [f b, g b]) blocks
-    where f b = (Fall . (l2v M.!)) <$> fallsTo b
-	  g = fmap (Leap . (l2v M.!)) . jumpsTo
+  blocksWithExits = M.fromList $ zip vs (zip bs $ exits bs)
+  blocks = M.map fst blocksWithExits
+  edges = M.map (\(b,x) -> S.fromList . catMaybes $ [f x, g x]) blocksWithExits
+    where f x = (Fall . (l2v M.!)) <$> fallsTo x
+	  g x = (Leap . (l2v M.!)) <$> jumpsTo x
 
 -- remove any unreachable blocks
 reachable :: CFG i -> CFG i
