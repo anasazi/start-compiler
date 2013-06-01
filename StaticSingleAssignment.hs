@@ -273,9 +273,7 @@ copyPropagationOnce cfg =
   where
   isCopyToReg (SSAInstruction _ (Just (Reg _)) (Copy _)) = True
   isCopyToReg _ = False
-  --isCopyToSelf (SSAInstruction _ (Just tar) (Copy (Var src))) | tar == src = True
-  --isCopyToSelf _ = False
-  needToKeep i = not $ isCopyToReg i -- || isCopyToSelf i
+  needToKeep i = not $ isCopyToReg i 
 
 fixEq :: Eq a => (a -> a) -> a -> a
 fixEq f v | v' == v   = v
