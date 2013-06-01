@@ -12,6 +12,8 @@ import qualified Data.Map as M
 import qualified Data.Foldable as F
 import Data.Maybe
 
+import Debug.Trace
+
 data Hole = Hole
 hole = undefined
 
@@ -39,28 +41,37 @@ simpleConstantPropagation cfg =
       k0 = K $ M.fromList [ (var, Unknown) | var <- vars ]
       step k = K $ M.fromList [ (var, eval k (defs M.! var)) | var <- vars ]
       kEnd = fixEq step k0
-  in hole
+      newDefs = M.map (newOpcode kEnd) defs
+      replace i@(SSAInstruction _ Nothing _) = i
+      replace (SSAInstruction loc (Just tar) _) = SSAInstruction loc (Just tar) (newDefs M.! tar)
+  in fmap replace cfg
 
 constantPropagation :: CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
-constantPropagation = hole
+constantPropagation = simpleConstantPropagation
 
 fixEq f v | v == v'   = v
 	  | otherwise = fixEq f v'
   where v' = f v
 
-newOpcode k (Phi inc) =
-  case eval k (Phi inc) of
-    Const (Number n) -> Copy (Val (Constant n))
-    Const (Logic True) -> Copy (Val (Constant 1))
-    Const (Logic False) -> Copy (Val (Constant 0))
-    Variable -> Phi inc
-newOpcode k (SIF sif) = hole
-newOpcode k (Copy val) =
-  case eval k val of
-    Const (Number n) -> Copy (Val (Constant n))
-    Const (Logic True) -> Copy (Val (Constant 1))
-    Const (Logic False) -> Copy (Val (Constant 0))
-    Variable -> Copy val
+value2operand (Number n) = Val $ Constant n
+value2operand (Logic True) = Val $ Constant 1
+value2operand (Logic False) = Val $ Constant 0
+
+newOpcode k sif@(SIF (Binary op left right _)) =
+  case (eval k left, op, eval k right) of
+    (Const (Number 0),	Add,  _		      ) -> Copy right
+    (_		     ,	Add,  Const (Number 0)) -> Copy left
+    (_		     ,	Sub,  Const (Number 0)) -> Copy left
+    (Const (Number 1),	Mul,  _		      ) -> Copy right
+    (_		     ,	Mul,  Const (Number 1)) -> Copy left
+    (_		     ,  Div,  Const (Number 1)) -> Copy left
+    _ -> case eval k sif of
+	  Const c -> Copy $ value2operand c
+	  Variable -> sif
+newOpcode k opc =
+  case eval k opc of
+    Const c -> Copy $ value2operand c
+    Variable -> opc
 
 class Eval a where
   eval :: Knowledge -> a -> Constancy
@@ -91,22 +102,24 @@ instance Eval (SIFOpcode (SSAOperand Integer)) where
   eval k (Branch _ _) = error "cannot evalutate a branch"
 
 evalUnary Neg (Const (Number n)) = Const $ Number (negate n)
-evalUnary _ input = input
+evalUnary _ input = Variable
 
 evalBinary Add (Const (Number l)) (Const (Number r)) = Const . Number $ l + r
 evalBinary Sub (Const (Number l)) (Const (Number r)) = Const . Number $ l - r
 
-evalBinary Mul Unknown Variable = Const $ Number 0
-evalBinary Mul (Const (Number 0)) right = Const $ Number 0
-evalBinary Mul left (Const (Number 0)) = Const $ Number 0
-evalBinary Mul (Const (Number l)) (Const (Number r)) = Const . Number $ l * r
+evalBinary Mul Unknown		  Variable	      = Const $ Number 0
+evalBinary Mul Variable		  Unknown	      = Const $ Number 0
+evalBinary Mul (Const (Number 0)) _		      = Const $ Number 0
+evalBinary Mul _		  (Const (Number 0))  = Const $ Number 0
+evalBinary Mul (Const (Number l)) (Const (Number r))  = Const . Number $ l * r
 
-evalBinary Div (Const (Number l)) (Const (Number r)) = Const . Number $ l `div` r
-evalBinary Mod (Const (Number l)) (Const (Number r)) = Const . Number $ l `mod` r
+evalBinary Div (Const (Number l)) (Const (Number r))  = Const . Number $ l `div` r
+evalBinary Mod _		  (Const (Number 1))  = Const $ Number 0
+evalBinary Mod (Const (Number l)) (Const (Number r))  = Const . Number $ l `mod` r
 
-evalBinary Equal (Const (Number l)) (Const (Number r)) = Const . Logic $ l == r
-evalBinary LessEqual (Const (Number l)) (Const (Number r)) = Const . Logic $ l <= r
-evalBinary Less (Const (Number l)) (Const (Number r)) = Const . Logic $ l < r
+evalBinary Equal      (Const (Number l)) (Const (Number r)) = Const . Logic $ l == r
+evalBinary LessEqual  (Const (Number l)) (Const (Number r)) = Const . Logic $ l <= r
+evalBinary Less	      (Const (Number l)) (Const (Number r)) = Const . Logic $ l < r
 
 evalBinary Istype _ _ = Variable
 evalBinary Checktype _ _ = Variable
