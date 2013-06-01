@@ -23,7 +23,6 @@ import qualified Data.Foldable as F
 import Data.Foldable (Foldable)
 import Control.Arrow hiding ((<+>))
 import Data.Maybe (fromJust)
-import Debug.Trace (trace)
 
 data Hole = Hole
 hole = undefined
@@ -34,7 +33,6 @@ toSSA (SIFMethodDecl _ _ params) cfg = do
   inserted <- insertPhis restructured
   let renamed = renamePhis params inserted
   return renamed
-  --fmap (renamePhis params) $ insertPhis restructured
 
 -- inserting phis where needed
 insertPhis :: CFG (SSAInstruction (Maybe Integer)) -> State SIFLocation (CFG (SSAInstruction (Maybe Integer)))
@@ -77,7 +75,7 @@ renamePhis params cfg =
 makeCertain = fmap (fmap fromJust)
 
 rename :: CFG (SSAInstruction (Maybe Integer)) -> Vertex -> State RenameState (CFG (SSAInstruction (Maybe Integer)))
-rename !cfg v = do
+rename cfg v = do
   -- get block v
   -- generate a name for the target of each phi node
   -- replace variables used and generate names for variables assigned to in block
@@ -93,7 +91,7 @@ rename !cfg v = do
   cfg''' <- F.foldlM rename cfg'' dominated
   -- pop variables defined in block
   F.mapM_ popPhi $ body (blocks cfg''' M.! v)
-  return $ trace ("renamed " ++ show v ++ " " ++ show cfg') cfg'''
+  return cfg'''
 
 type RenameState = M.Map (SIFIdentifier, SIFOffset) (Integer, [Integer])
 
@@ -108,8 +106,8 @@ markPhis p b = T.forM b $ \i@(SSAInstruction loc tar opc) -> do
     Phi inc -> do
       let (Just to) = tar
       from <- replaceVar to
-      let inc = M.insert p from inc
-      return $ SSAInstruction loc tar $ Phi inc
+      let inc' = M.insert p from inc
+      return $ SSAInstruction loc tar $ Phi inc'
     _ -> return i
     
 renameInstruction :: SSAInstruction (Maybe Integer) -> State RenameState (SSAInstruction (Maybe Integer))
@@ -141,6 +139,7 @@ replaceVar (Local ident off Nothing) = do
   let key = (ident, off)
   (_,(i:_)) <- fmap (M.!key) get
   return $ Local ident off (Just i)
+replaceVar other = return other
 
 popVar :: SSAVar (Maybe Integer) -> State RenameState ()
 popVar (Local ident off _) = do
