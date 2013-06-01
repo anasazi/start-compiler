@@ -30,11 +30,6 @@ import Control.Arrow hiding ((<+>))
 import Data.Maybe (fromJust)
 import Routine
 
-import Debug.Trace (trace)
-
-data Hole = Hole
-hole = undefined
-
 allToSSA :: Routines (CFG SIFInstruction) -> Routines (CFG (SSAInstruction Integer))
 allToSSA rs =
   let nextInstr = 1 + maxLocCFG rs
@@ -363,13 +358,13 @@ data SSAVar a =
 data SSAOperand a = 
     Var (SSAVar a) -- equivalent of Stack and Register
   | Val SIFOperand -- no Stack or Register uses
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data SSAOpcode a = 
     Phi (M.Map Vertex (SSAVar a))	  
   | SIF (SIFOpcode (SSAOperand a)) -- no uses of Move. either sets a register or has an effect
   | Copy (SSAOperand a) -- equivalent of Move, but also allows for copying into a register
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data SSAInstruction a = SSAInstruction SIFLocation (Maybe (SSAVar a)) (SSAOpcode a)
   deriving (Eq, Show, Functor, Foldable, Traversable)

@@ -28,7 +28,7 @@ data SIFOperand =
   | Register SIFLocation 
   | Type SIFIdentifier SIFSize 
   | Label SIFLocation 
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data SIFType = 
     UnboxInt 
@@ -47,7 +47,7 @@ data SIFOpcode a =
   | Binary SIFBinary a {- left input -} a {- right input -} SIFType {- return type -} 
   | Branch (SIFBranch a) a {- target location -} 
   | NOP 
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data SIFSideEffect a = 
     Call a {- location -}
@@ -61,13 +61,13 @@ data SIFSideEffect a =
   | Ret a {- bytes to pop for formal parameters -}
   | Param a {- value to push onto stack -}
   | Entrypc
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving (Eq, Show)
-data SIFBinary = Add | Sub | Mul | Div | Mod | Equal | LessEqual | Less | Istype | Checktype | LoadDyanmic 
-  deriving (Eq, Show)
+data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving (Eq, Ord, Show)
+data SIFBinary = Add | Sub | Mul | Div | Mod | Equal | LessEqual | Less | Istype | Checktype | LoadDynamic 
+  deriving (Eq, Ord, Show)
 data SIFBranch a = Jump | IfZero a {- test -} | IfSet a {- test -} 
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving (Eq, Ord, Show)
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
@@ -163,7 +163,7 @@ instance Pretty SIFBinary where
     Less -> text "cmplt"
     Istype -> text "istype"
     Checktype -> text "checktype"
-    LoadDyanmic -> text "lddynamic"
+    LoadDynamic -> text "lddynamic"
 
 instance Pretty a => Pretty (SIFBranch a) where
   pretty br = case br of

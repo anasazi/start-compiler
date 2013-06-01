@@ -96,7 +96,7 @@ leq = string "cmple" >> return LessEqual
 lt = string "cmplt" >> return Less
 istype = string "istype" >> return Istype
 checktype = string "checktype" >> return Checktype
-loaddynamic = string "lddynamic" >> return LoadDyanmic
+loaddynamic = string "lddynamic" >> return LoadDynamic
 binary = choice . map try $ [add, sub, mul, divide, modulo, eq, leq, lt, istype, checktype, loaddynamic]
 
 -- SIF branch opcodes

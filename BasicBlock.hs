@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 module BasicBlock 
-( BasicBlock--, empty
+( BasicBlock, isEmpty
 , leader, end, body
 , fallsTo, jumpsTo, label, locs
 , toBlocks, fromBlocks, fromBlock
@@ -44,6 +44,8 @@ leader (BB is) = head is
 end (BB is) = last is
 body (BB is) = is
 
+isEmpty (BB is) = null is
+
 -- can this block fall off the end?
 fallsTo (Fall x) = Just x
 fallsTo (Branch _ x) = Just x
@@ -56,8 +58,6 @@ jumpsTo _ = Nothing
 label :: InstructionSet i => BasicBlock i -> Integer
 label = loc . leader
 locs (BB is) = map loc is
-
-empty n = BB [nop n]
 
 -- Break an instruction stream into basic blocks
 toBlocks :: InstructionSet i => [i] -> [BasicBlock i]

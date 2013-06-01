@@ -11,6 +11,7 @@ import StaticSingleAssignment
 import Control.Monad.State
 import InstructionSet
 import ConstantPropagation
+import ValueNumbering
 
 pp :: Pretty a => a -> IO ()
 pp = print . pretty
@@ -28,7 +29,19 @@ printCFGs ast@(SIFProgram ts ms gs is)  = do
   let nextInstr = 1 + maxLocBlocks rs
   let cfgs = fmap buildCFG rs
   let ssas = allToSSA cfgs
-  let cprop = fmap constantPropagation ssas
+  let vnums = fmap valueNumbering ssas
+  {-
+  forM_ ms $ \m -> do
+    let ssa = ssas M.! m
+    let vnum = vnums M.! m
+    forM_ (vertices ssa) $ \v -> do
+      print v
+      print "SSA"
+      pp . Vertical . fromBlock $ blocks ssa M.! v
+      print "VNUM"
+      pp . Vertical . fromBlock $ blocks vnum M.! v
+  -}
+  let cprop = fmap constantPropagation vnums
   let sifs = allFromSSA cprop
   let rs' = M.map (fromBlocks . linearize) sifs
   let (ms', is') = uncurry renumber . second concat . unzip . M.toList $ rs'

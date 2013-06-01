@@ -12,11 +12,6 @@ import qualified Data.Map as M
 import qualified Data.Foldable as F
 import Data.Maybe
 
-import Debug.Trace
-
-data Hole = Hole
-hole = undefined
-
 data Value = Number Integer | Logic Bool deriving (Eq, Show)
 data Constancy = Variable | Const Value | Unknown deriving (Eq, Show)
 
@@ -123,7 +118,7 @@ evalBinary Less	      (Const (Number l)) (Const (Number r)) = Const . Logic $ l 
 
 evalBinary Istype _ _ = Variable
 evalBinary Checktype _ _ = Variable
-evalBinary LoadDyanmic _ _ = Variable
+evalBinary LoadDynamic _ _ = Variable
 
 evalBinary _ left right = left <> right
 {-

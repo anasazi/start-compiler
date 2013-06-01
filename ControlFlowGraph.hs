@@ -12,6 +12,8 @@ module ControlFlowGraph
 , dominators, idominators, dominanceFrontier
 , mapBlocks, modifyNode
 , goesTo
+, removeEmptyVertices
+, edge
 ) where
 
 import InstructionSet
@@ -126,6 +128,17 @@ removeVertex (CFG entry blocks edges) v
   | otherwise = CFG entry blocks' edges'
       where blocks' = M.delete v blocks
 	    edges' = M.map (S.delete (Leap v) . S.delete (Fall v)) . M.delete v $ edges
+
+data Hole = Hole
+hole = undefined
+
+-- removes any blocks that are completely empty and glues together edges to compensate
+removeEmptyVertices cfg@(CFG entry blocks edges) =
+  let empty = M.keys $ M.filter isEmpty blocks
+      rewire e = 
+	let v = goesTo . head . S.toList $ succs cfg (goesTo e) in edge (const (Leap v)) (const (Fall v)) e
+      edges' = M.map (S.map (\e -> if goesTo e `elem` empty then rewire e else e)) edges
+  in foldl removeVertex (CFG entry blocks edges') empty
 
 -- Given the CFG for a routine, organize the blocks in their linear order
 linearize :: CFG i -> [BasicBlock i]
