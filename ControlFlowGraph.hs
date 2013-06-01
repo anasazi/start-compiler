@@ -127,12 +127,12 @@ removeVertex (CFG entry blocks edges) v
 	    edges' = M.map (S.delete (Leap v) . S.delete (Fall v)) . M.delete v $ edges
 
 -- Given the CFG for a routine, organize the blocks in their linear order
-linearize :: InstructionSet i => CFG i -> [BasicBlock i]
+linearize :: CFG i -> [BasicBlock i]
 linearize cfg = map (blocks cfg M.!) ordering
-  where 
-    l2v = M.fromList . concatMap (\(v, b) -> [ (l,v) | l <- locs b ]) . M.toList . blocks $ cfg
-    fallsToV v = fmap (l2v M.!) . fallsTo $ blocks cfg M.! v
-    next = map (id &&& fallsToV) (vertices cfg)
-    starts = uncurry (L.\\) . second catMaybes . unzip $ next
-    line s = case join $ lookup s next of Nothing -> [s] ; Just s' -> s : line s'
-    ordering = concatMap line (entry cfg : filter (/= entry cfg) starts)
+  where
+  falls = M.toList $ M.map (fmap goesTo . listToMaybe . S.toList . S.filter isFall) $ edges cfg
+  starts = uncurry (L.\\) . second catMaybes . unzip $ falls
+  line s = case join $ lookup s falls of Nothing -> [s] ; Just s' -> s : line s'
+  ordering = concatMap line $ entry cfg : filter (/= entry cfg) starts
+
+isFall = edge (const False) (const True)
