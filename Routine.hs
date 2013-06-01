@@ -9,6 +9,9 @@ import BasicBlock
 import SIF 
 import Data.Map
 import Data.List
+import qualified Data.Foldable as F
+import qualified Data.Traversable as T
+import Data.Ord (comparing)
 
 type Routines i = Map SIFMethodDecl i
 
@@ -23,3 +26,7 @@ routines (SIFProgram _ ms _ is) = fromList [ (m, b) | m <- ms, b <- grouper bs, 
 	  (b:bs) | isEntry b -> let (xs,ys) = break isEntry bs in (b : xs) : grouper ys
 		 | otherwise -> grouper $ dropWhile (not . isEntry) bs
 		    where isEntry b = loc (leader b) `elem` ls
+
+maxLoc :: InstructionSet i => Routines [BasicBlock i] -> SIFLocation
+maxLoc = undefined
+--maxLoc rs = loc $ F.maximumBy (comparing loc) rs
