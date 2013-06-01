@@ -5,8 +5,11 @@
 {-# LANGUAGE BangPatterns #-}
 module StaticSingleAssignment 
 ( toSSA, fromSSA
-, SSAInstruction
 , allToSSA, allFromSSA
+, SSAInstruction(..)
+, SSAOpcode(..)
+, SSAOperand(..)
+, SSAVar(..)
 ) where
 
 import SIF
