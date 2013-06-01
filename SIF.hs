@@ -61,6 +61,7 @@ data SIFSideEffect a =
   | Ret a {- bytes to pop for formal parameters -}
   | Param a {- value to push onto stack -}
   | Entrypc
+  | Count a {- the counter to increment -}
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 data SIFUnary = Neg | Isnull | Load | New | Newlist | Checknull deriving (Eq, Ord, Show)
@@ -73,7 +74,7 @@ data SIFVarDecl = SIFVarDecl SIFIdentifier SIFSize SIFType deriving (Eq, Ord, Sh
 data SIFTypeDecl = SIFTypeDecl SIFIdentifier [SIFVarDecl] deriving Show
 data SIFMethodDecl = SIFMethodDecl SIFIdentifier SIFLocation {- entry location -} [SIFVarDecl] deriving (Eq, Ord, Show)
 data SIFGlobalDecl = SIFGlobalDecl SIFIdentifier SIFOffset {- offset from GP -} SIFType deriving Show
-data SIFInstruction = SIFInstruction SIFLocation (SIFOpcode SIFOperand)  deriving Show
+data SIFInstruction = SIFInstruction SIFLocation (SIFOpcode SIFOperand)  deriving (Eq, Show)
 data SIFProgram = SIFProgram [SIFTypeDecl] [SIFMethodDecl] [SIFGlobalDecl] [SIFInstruction] deriving Show
 
 instance InstructionSet SIFInstruction where
@@ -141,6 +142,7 @@ instance Pretty a => Pretty (SIFSideEffect a) where
     Ret b -> text "ret" <+> pretty b
     Param v -> text "param" <+> pretty v
     Entrypc -> text "entrypc"
+    Count c -> text "count" <+> pretty c
 
 instance Pretty SIFUnary where
   pretty u = case u of
