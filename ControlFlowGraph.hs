@@ -14,6 +14,7 @@ module ControlFlowGraph
 , goesTo
 , removeEmptyVertices
 , edge
+, spanningTree, reachableNodes
 ) where
 
 import InstructionSet
@@ -122,6 +123,35 @@ reachable cfg =
 	  where newlyMarked = S.map goesTo (succs cfg v) `S.intersection` unmarked
 		vs' = S.toList newlyMarked ++ vs
 		unmarked' = unmarked S.\\ newlyMarked
+
+spanningTree :: CFG i -> S.Set (Vertex, Edge)
+spanningTree cfg@(CFG entry blocks succs) = f S.empty
+  where
+  nodes = S.fromList $ vertices cfg
+  edges = concat [ [ (v, e) | e <- S.toList es ] | (v, es) <- M.toList succs ]
+  g ves = M.fromList . map (second S.singleton) . S.toList $ ves
+  f es = 
+    let found = reachableNodes (CFG entry blocks (g es)) 
+	(e:_) = [ x | x <- edges, fst x `S.member` found, goesTo (snd x) `S.notMember` found ]
+    in 
+    if found == nodes
+    then es
+    else f (S.insert e es)
+
+reachableNodes :: CFG i -> S.Set Vertex
+reachableNodes cfg = reachable
+  where
+  reachable :: S.Set Vertex
+  reachable = S.fromList (vertices cfg) S.\\ unreachable [entry cfg] unmarked
+  unmarked :: S.Set Vertex
+  unmarked = S.delete (entry cfg) $ S.fromList (vertices cfg)
+  unreachable :: [Vertex] -> S.Set Vertex -> S.Set Vertex
+  unreachable [] us = us
+  unreachable (v:vs) us = unreachable vs' us'
+    where
+    new = S.map goesTo (succs cfg v) `S.intersection` us
+    vs' = S.toList new ++ vs
+    us' = us S.\\ new
 
 removeVertex (CFG entry blocks edges) v
   | v == entry = error "cannot remove the entry vertex"
