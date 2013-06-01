@@ -15,6 +15,7 @@ module ControlFlowGraph
 , removeEmptyVertices
 , edge
 , spanningTree, reachableNodes
+, splitEdge
 ) where
 
 import InstructionSet
@@ -29,6 +30,7 @@ import Control.Applicative
 import Data.Array
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
+import SIF
 
 newtype Vertex = Vertex Integer deriving (Eq, Ord, Enum, Show)
 data Edge = Leap Vertex | Fall Vertex deriving (Eq, Ord, Show)
@@ -49,6 +51,29 @@ goesTo = edge id id
 
 edge jump _ (Leap x) = jump x
 edge _ fall (Fall x) = fall x
+
+addEdge v e edges = M.adjust (S.insert e) v edges
+
+-- the provided block should end in a NOP that can be replaced by the branch if necessary
+splitEdge :: CFG SIFInstruction -> (Vertex, Edge) -> [SIFInstruction] -> CFG SIFInstruction
+splitEdge cfg@(CFG entry blocks edges) (src, Leap tar) new =
+  let v = succ . maximum $ vertices cfg
+      from = Leap v
+      to = Leap tar
+      old@(SIFInstruction loc (Branch op targetLeader)) = end $ blocks M.! src
+      SIFInstruction nl _ = head new
+      newLeader = Label nl
+      fixParent = modifyNode (fmap (\i -> if i == old then SIFInstruction loc (Branch op newLeader) else i)) src
+      i' = let SIFInstruction l NOP = last new in SIFInstruction l (Branch Jump targetLeader)
+      new' = init new ++ [i']
+      [b] = toBlocks new'
+  in fixParent $ CFG entry (M.insert v b blocks) (addEdge src from . addEdge v to $ edges)
+splitEdge cfg@(CFG entry blocks edges) (src, Fall tar) new =
+  let v = succ . maximum $ vertices cfg
+      from = Fall v
+      to = Fall tar
+      [b] = toBlocks new
+  in CFG entry (M.insert v b blocks) (addEdge src from . addEdge v to $ edges)
 
 succs :: CFG i -> Vertex -> S.Set Edge
 succs cfg v = edges cfg M.! v
@@ -158,9 +183,6 @@ removeVertex (CFG entry blocks edges) v
   | otherwise = CFG entry blocks' edges'
       where blocks' = M.delete v blocks
 	    edges' = M.map (S.delete (Leap v) . S.delete (Fall v)) . M.delete v $ edges
-
-data Hole = Hole
-hole = undefined
 
 -- removes any blocks that are completely empty and glues together edges to compensate
 removeEmptyVertices cfg@(CFG entry blocks edges) =
