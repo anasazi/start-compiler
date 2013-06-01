@@ -1,5 +1,6 @@
 #!/bin/bash
 for file in ./examples/*.start; do
     echo "compiling $file"
-    ./main <$file >"./processed/`basename $file`" 
+    runghc main <$file >"./processed/`basename $file`"
+#    ./main <$file >"./processed/`basename $file`" 
 done
