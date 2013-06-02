@@ -5,7 +5,7 @@
 {-# LANGUAGE BangPatterns #-}
 module StaticSingleAssignment 
 ( toSSA, fromSSA
-, allToSSA, allFromSSA
+, allToSSA, allFromSSA, allFromSSACopyProp
 , SSAInstruction(..)
 , SSAOpcode(..)
 , SSAOperand(..)
@@ -29,6 +29,7 @@ import Data.Foldable (Foldable)
 import Control.Arrow hiding ((<+>))
 import Data.Maybe (fromJust)
 import Routine
+import Debug.Trace
 
 allToSSA :: Routines (CFG SIFInstruction) -> Routines (CFG (SSAInstruction Integer))
 allToSSA rs =
@@ -196,15 +197,22 @@ opcodeSIF2SSA vars opc = SIF $ fmap (operandSIF2SSA vars) opc
 
 instructionSIF2SSA vars i@(SIFInstruction loc opc) = SSAInstruction loc (assignsToSIF vars i) (opcodeSIF2SSA vars opc)
 
---allFromSSA :: Routines (CFG (SSAInstruction Integer)) -> Routines (CFG SIFInstruction)
-allFromSSA rs =
+allFromSSACopyProp :: Routines (CFG (SSAInstruction Integer)) -> Routines (CFG SIFInstruction, Integer)
+allFromSSACopyProp rs =
   let nextInstr = 1 + maxLocCFG rs
       old = M.toList rs
-      new = evalState (T.mapM (uncurry fromSSA) old) nextInstr
+      new = evalState (T.mapM (uncurry $ fromSSA True) old) nextInstr
   in M.fromList new
 
---fromSSA :: SIFMethodDecl -> CFG (SSAInstruction Integer) -> State SIFLocation (SIFMethodDecl, CFG SIFInstruction)
-fromSSA method@(SIFMethodDecl loc name vars) cfg = do
+allFromSSA :: Routines (CFG (SSAInstruction Integer)) -> Routines (CFG SIFInstruction)
+allFromSSA rs = 
+  let nextInstr = 1 + maxLocCFG rs
+      old = M.toList rs
+      new = evalState (T.mapM (uncurry $ fromSSA False) old) nextInstr
+  in M.map fst $ M.fromList new
+
+fromSSA :: Bool -> SIFMethodDecl -> CFG (SSAInstruction Integer) -> State SIFLocation (SIFMethodDecl, (CFG SIFInstruction, Integer))
+fromSSA doCopyProp method@(SIFMethodDecl name loc vars) cfg = do
 {- general plan for converting from SSA to SIF
   1. convert assignments to stack variables into assignments to registers (and update uses accordingly).
      record the old stack variable for phi assignments.
@@ -222,7 +230,8 @@ fromSSA method@(SIFMethodDecl loc name vars) cfg = do
   3. propagate copies to registers by replacing uses of that register with the copied value and removing the assignment. iterate until fixed point.
      (only copies into the stack variables used for phi nodes will be left)
 -}
-  let cfg'''' = copyPropagation cfg'''
+  let cfg'''' = if doCopyProp then copyPropagation cfg''' else cfg'''
+  let numCopiesPropagated = fromIntegral $ length (fromBlocks (linearize cfg''')) - length (fromBlocks (linearize cfg''''))
   --let cfg'''' = cfg'''
 {-
   4. replace remaining copies (all to stack variables) with moves. unwrap all other SIF opcodes.
@@ -238,8 +247,8 @@ fromSSA method@(SIFMethodDecl loc name vars) cfg = do
 -}
   let oldVarDecls = [ SIFVarDecl (phiVarName ident 0) off typ | (SIFVarDecl ident off typ) <- vars ]
   let newVarDecls = [ SIFVarDecl (phiVarName ident sub) off typ | (Local ident _ typ sub, off) <- M.toList slotMapping ]
-  let newMethod = SIFMethodDecl loc name (oldVarDecls ++ newVarDecls)
-  return (newMethod, cfg''''')
+  let newMethod = SIFMethodDecl name loc (oldVarDecls ++ newVarDecls)
+  return (newMethod, (cfg''''', numCopiesPropagated))
 
 phiVarName ident sub = ident ++ "$" ++ show sub
 

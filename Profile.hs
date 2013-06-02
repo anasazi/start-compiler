@@ -18,12 +18,14 @@ import System.IO
 import System.Directory
 import System.Cmd
 
+import Debug.Trace
+
 type Counts = M.Map Integer Integer
 
-processCounts :: Counts -> Routines (CFG SIFInstruction) -> Routines (CFG SIFInstruction)
+processCounts :: Counts -> Routines (CFG SIFInstruction) -> Routines ((CFG SIFInstruction), Integer)
 processCounts counts cfgs = fmap (analyzeBranches counts) cfgs
 
-analyzeBranches :: Counts -> CFG SIFInstruction -> CFG SIFInstruction
+analyzeBranches :: Counts -> CFG SIFInstruction -> (CFG SIFInstruction, Integer)
 analyzeBranches counts cfg =
   let is = fromBlocks $ linearize cfg
       ves = concat [ [ (v, e) | e <- S.toList es ] | (v, es) <- M.toList (edges cfg) ]
@@ -34,7 +36,6 @@ analyzeBranches counts cfg =
       isForward :: Integer -> Integer -> Bool
       isForward src tar = length (takeWhile ((/=src) . loc) is) < length (takeWhile ((/=tar) . loc) is)
       -- backward branches are predicted as taken
-      --isBackward src tar = length (takeWhile ((/=src) . loc) is) > length (takeWhile ((/=tar) . loc) is)
       withBranches = M.filter (isBranch . end) (blocks cfg)
       fallFor v = (\((_,a),b) -> (a,b)) . head . M.toList $ M.filterWithKey (\(k,e) _ -> k == v && case e of Fall _ -> True ; _ -> False) ve2s
       leapFor v = (\((_,a),b) -> (a,b)) . head . M.toList $ M.filterWithKey (\(k,e) _ -> k == v && case e of Leap _ -> True ; _ -> False) ve2s
@@ -42,7 +43,8 @@ analyzeBranches counts cfg =
       update cfg (v,(br,fall,jump)) = 
 	let [a,b] = S.toList $ succs cfg v
 	in modifyNode (modifyBlock (\is -> init is ++ [br])) v . addEdgeCFG v fall . addEdgeCFG v jump . removeEdgeCFG v a . removeEdgeCFG v b $ cfg
-  in foldl update cfg (M.toList better)
+      numChanged = fromIntegral $ length [ b | b <- map end $ M.elems withBranches, b `notElem` (map (\(x,_,_) -> x) (M.elems better)) ]
+  in (foldl update cfg (M.toList better), numChanged)
 
 betterBranch cfg (Fall f,fc) (Leap j,jc) True br@(SIFInstruction loc (Branch (IfZero test) tar)) 
   | fc > jc = (br, Fall f, Leap j) 
@@ -75,7 +77,7 @@ recoverCounts ve2s =
       ve2s' = foldl (flip $ uncurry M.insert) ve2s learnedEdges 
   in if null verticesWithOneUnknown then ve2s else ve2s'
 
-profile startloc ast = do
+profile numCounters startloc ast = do
   (codepath,codehandle) <- openTempFile "." "instrumented"
   (datapath,datahandle) <- openTempFile "." "stats"
 
@@ -94,23 +96,26 @@ profile startloc ast = do
 
   let countStrs = drop 1 . dropWhile (not . L.isPrefixOf "- Counts :") $ lines stats
   let countsStrPairs = map (\s -> (\[a,b] -> "(" ++ a ++ "," ++ b ++ ")") . map (filter isDigit) . words $ s) countStrs
-  let counts = M.fromList $ map (\s -> read s :: (Integer, Integer)) countsStrPairs
+  let readCounts = M.fromList $ map (\s -> read s :: (Integer, Integer)) countsStrPairs
+  let counts = M.fromList [ (c, M.findWithDefault 0 c readCounts) | c <- [0..numCounters-1] ]
 
   return counts
   
 
-instrumentAll :: Routines (CFG SIFInstruction) -> Routines (CFG SIFInstruction)
+instrumentAll :: Routines (CFG SIFInstruction) -> (Routines (CFG SIFInstruction), Integer)
 instrumentAll rs =
   let nextInstr = 1 + maxLocCFG rs
-  in evalState (T.mapM instrument rs) nextInstr
+      instrumented = evalState (T.mapM instrument rs) nextInstr
+      numCounters = sum . map snd . M.elems $ instrumented
+  in (M.map fst instrumented, numCounters)
 
-instrument :: CFG SIFInstruction -> State SIFLocation (CFG SIFInstruction)
+instrument :: CFG SIFInstruction -> State SIFLocation ((CFG SIFInstruction), Integer)
 instrument cfg = do
   let toMark = S.toList $ antiSpanningTree cfg
   loc <- get
   let (marked, (loc', _)) = runState (foldM insertCounter cfg toMark) (loc, 0)
   put loc'
-  return marked
+  return (marked, fromIntegral $ length toMark)
 
 insertCounter cfg edge = do
   blk <- mkCounter

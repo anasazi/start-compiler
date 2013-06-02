@@ -12,6 +12,8 @@ import qualified Data.Map as M
 import qualified Data.Foldable as F
 import Data.Maybe
 
+import Debug.Trace
+
 data Value = Number Integer | Logic Bool deriving (Eq, Show)
 data Constancy = Variable | Const Value | Unknown deriving (Eq, Show)
 
@@ -21,6 +23,9 @@ instance Monoid Constancy where
   x `mappend` y | x == y = x
   x `mappend` y | x /= y = Variable
   Variable `mappend` _ = Variable
+
+isConstant (Const _) = True
+isConstant _ = False
 
 newtype Knowledge = K (M.Map (SSAVar Integer) Constancy) deriving (Eq, Show)
 -- initial locals have variable constancy
@@ -39,9 +44,10 @@ simpleConstantPropagation cfg =
       newDefs = M.map (newOpcode kEnd) defs
       replace i@(SSAInstruction _ Nothing _) = i
       replace (SSAInstruction loc (Just tar) _) = SSAInstruction loc (Just tar) (newDefs M.! tar)
-  in fmap replace cfg
+      numPropagated = let (K end) = kEnd in fromIntegral $ M.size $ M.filter isConstant end
+  in (fmap replace cfg, numPropagated)
 
-constantPropagation :: CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
+constantPropagation :: CFG (SSAInstruction Integer) -> (CFG (SSAInstruction Integer), Integer)
 constantPropagation = simpleConstantPropagation
 
 fixEq f v | v == v'   = v

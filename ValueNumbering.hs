@@ -22,7 +22,7 @@ import Debug.Trace
 data Hole = Hole
 hole = undefined
 
-valueNumbering :: CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
+valueNumbering :: CFG (SSAInstruction Integer) -> (CFG (SSAInstruction Integer), Integer)
 valueNumbering = dominatorValueNumberTechnique
 
 type ValueNumber = SSAVar Integer
@@ -44,11 +44,15 @@ getExprVN expr = ((M.lookup expr) . snd) <$> get
 putExprVN :: Expr -> ValueNumber -> State VNState ()
 putExprVN expr val = modify (second (M.insert expr val))
 
-dominatorValueNumberTechnique :: CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
+dominatorValueNumberTechnique :: CFG (SSAInstruction Integer) -> (CFG (SSAInstruction Integer), Integer)
 dominatorValueNumberTechnique cfg = 
   let vnum = dvnt (M.empty, M.empty) cfg (entry cfg)
       vnum' = removeEmptyVertices vnum
-  in fixJumps vnum'
+      numExprEliminated = length (filter isAssignment . fromBlocks . linearize $ cfg) - length (filter isAssignment . fromBlocks . linearize $ vnum')
+  in (fixJumps vnum', fromIntegral numExprEliminated)
+
+isAssignment (SSAInstruction _ Nothing _) = False
+isAssignment _ = True
 
 fixJumps cfg =
   let jumping = M.filter (isJump . end) (blocks cfg)
