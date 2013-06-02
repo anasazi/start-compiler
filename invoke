@@ -1,14 +1,13 @@
 #!/bin/bash
 ./build
-#compiler="runghc main.hs"
-compiler="./main"
+compiler="./main -opt=prof -backend=ir -start=../start/bin/start.dart"
 
 rm ./examples/input/*
 echo "generating start IR for typed examples"
 for file in ./examples/source/*.dart; do
   file=`basename -s .dart $file`
   echo "   $file.dart -> $file.start"
-  dart $1 -c "examples/source/$file.dart" > "examples/input/$file.start"
+  dart ../start/bin/start.dart -c "examples/source/$file.dart" > "examples/input/$file.start"
 done
 
 rm ./untyped/input/*
@@ -16,7 +15,7 @@ echo "generating start IR for untyped examples"
 for file in ./untyped/source/*.dart; do
   file=`basename -s .dart $file`
   echo "   $file.dart -> $file.start"
-  dart $1 -c "untyped/source/$file.dart" > "untyped/input/$file.start"
+  dart ../start/bin/start.dart -c "untyped/source/$file.dart" > "untyped/input/$file.start"
 done
 
 rm ./examples/output/*
@@ -24,8 +23,7 @@ echo "compiling typed examples"
 for file in ./examples/input/*.start; do
   file=`basename -s .start $file`
   echo "   $file.start -> optimized $file.start"
-  $compiler $1 < "./examples/input/$file.start" > "./examples/output/$file.start"
-  #runghc main.hs $1 < "./examples/input/$file.start" > "./examples/output/$file.start"
+  $compiler < "./examples/input/$file.start" > "./examples/output/$file.start"
 done
 
 rm ./untyped/output/*
@@ -33,6 +31,5 @@ echo "compiling untyped examples"
 for file in ./untyped/input/*.start; do
   file=`basename -s .start $file`
   echo "   $file.start -> optimized $file.start"
-  $compiler $1 < "./untyped/input/$file.start" > "./untyped/output/$file.start"
-  #runghc main.hs $1 < "./untyped/input/$file.start" > "./untyped/output/$file.start"
+  $compiler < "./untyped/input/$file.start" > "./untyped/output/$file.start"
 done

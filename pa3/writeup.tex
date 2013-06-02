@@ -1,0 +1,123 @@
+\documentclass{article}
+
+\author{Eric Reed}
+\title{CSE 501\\ Programming Assignment 3}
+\date{\today}
+\begin{document}
+\maketitle
+
+\section{How to Run the Compiler}
+The bash script \texttt{build} will compile the compiler.
+It requires the Haskell Platform and will produce an executable \texttt{main}.
+\texttt{main} takes three switch arguments to control its behavior.
+\texttt{-opt=} takes a comma delimited list of optimizations to do.
+Available optimizations are:
+  \texttt{ssa} for converting into SSA form, which is required for other optimizations,
+  \texttt{scp} for simple constant propagation,
+  \texttt{cse} for common subexpression elimination,
+  \texttt{copy} for copy propagation,
+  and \texttt{prof} for profiling based branch prediction.
+\texttt{-backend=} controls how output will be formatted.
+Available backends are:
+  \texttt{cfg} for printing the control flow graph of basic blocks; if \texttt{ssa} optimization is active, then it prints in SSA form,
+  \texttt{ir} for printing executable code,
+  \texttt{report} for printing an optimization report,
+  and \texttt{ssa} for printing in SSA form.
+\texttt{-start=} informs the profiler where the start interpreter is located.
+It should be provided with a relative path to the \texttt{bin/start.dart} file.
+\texttt{main} reads the input Start Intermediate Format code from \texttt{stdin} and writes to \texttt{stdout}.
+For example, running an optimization report on the link.start example and performing SCP and CSE would look like \texttt{./main -opt=ssa,scp,cse -backend=report -start=../start/bin/start.dart < link.start} and would print the report to standard out.
+
+\section{Approach to Profiling}
+I took a straightforward approach to profiling.
+A spanning tree is generated for each method.
+Edges not in the spanning tree are split and a counter is inserted there.
+The instrumented control flow graph is linearized and written to a temporary file.
+The compiler executes the start interpreter on that temporary file and produces a temporary data file.
+After interpretation completes, the data file is scraped for counter data 
+and the temporary files are destoryed.
+
+The compiler uses the counter data to reconstruct the 
+edge traversal frequencies for the CFG of each method.
+It uses these frequencies to evaluate whether each conditional branch could be more accurately predicted.
+If a backwards branch is not taken more often than it is taken,
+then the test is negated by swapping conditional branch opcodes,
+and the branch target is swapped with the other successor block.
+A similar operation is performed on forward branches that are usually taken.
+
+The modified CFG is then passed on to the rest of the optimizer.
+
+\section{Approach to Optimization}
+The compiler implements two primary optimization techniques: 
+simple constant propagation and global common subexpression elimination. 
+A restricted form of copy propagation is used in the translation out of SSA form.
+I think my approach to translating out of SSA form is also somewhat unusual.
+
+\subsection{SSA and Copy Propagation}
+Translation into SSA form uses the standard algorithm.
+Translation out of SSA form takes the safe in general approach of replacing phi nodes with copies.
+Rather than creating stack space for every SSA variable or trying to solve a coloring problem
+to assign SSA variables to stack variables, I simply convert every assignment to a stack variable
+into an assignment to a register and update uses accordingly.
+Each phi node is assigned a stack variable; 
+for convenience, the old stack variable it assigned to is used.
+Each phi node is replaced by a copy from that stack variable into a register at the phi node location, 
+and copies into that stack variable are inserted at the end of the predecessor blocks.
+At this point, the only stack variables remaining are the initial parameters and the phi nodes.
+
+Rather than translate copies to registers into \texttt{add (reg) 0}, I propagate all copies to registers.
+Haskell actually presents a very convenient way to do this.
+After constructing a list of copies into registers, 
+I create a function that does one level of use substitution.
+I can then use a lazy evaluation trick to simply say that the final version 
+is the fixed point of repeated applying that function. 
+The whole process is about three lines of code: list construction via a filter, 
+substitution function via a functor, and repetition via a fixed point.
+
+The only remaining copy instructions are to stack variables, which can be translated into \texttt{move}.
+It so happens that these instructions are exactly the ones used for phi nodes.
+Finally, the method declaration is updated to reflect the new phi node stack variables.
+
+\subsection{SCP}
+Simple constant propagation uses the standard lattice technique.
+A few Haskell niceties made implementation straightforward.
+The lattice forms a monoid under the meet operator, 
+which allowed me to handle things like phi nodes easily using just generic folds.
+Rather than carefully iterate over the CFG, 
+I used the fixed point trick again to find the final lattice cell values.
+
+\subsection{CSE}
+Value numbering uses the dominator technique, 
+which is implemented vary similarly to how I implemented the SSA construction algorithm.
+One nice feature here was that I could just rely on Haskell's immutable variables to automatically
+scope hash tables for me; the parent's table is unaffected by the recursive calls to children.
+
+\section{Results}
+Unfortunately, value numbering and branch prediction are both a little buggy.
+Value numbering sometimes drops stores when it shouldn't, which corrupts examples like \texttt{mmm}.
+While branch prediction tries to fix the CFG structure, 
+it seems to fail on some examples and ends up causing a use of a register before it is defined.
+I am not certain of the cause of either of these bugs.
+
+The impact of branch prediction varies greatly based on the original layout of the code.
+Sometimes there is a poorly directed branch, but only in a couple cases.
+Overall, this optimization has little effect.
+
+On examples it does not corrupt, value numbering works very well.
+Easily the biggest target for CSE is eliminating redundant address calculations.
+When computing a memory address to load or store, 
+the examples almost universally do it from scratch each time.
+Value numbering is fantastic for consolidating them into just one.
+
+Constant propagation and value numbering tend to target a lot of the same code due to
+value numbering's evaluation function performing constant folding.
+When value numbering runs first, constant propagation ends up doing a lot less.
+On its own, constant propagation has a similar impact to value numbering, but it cannot eliminate
+the redundant address computations discussed previously.
+
+Constant and copy propagation work very well together.
+My implementation of constant propagation creates a lot of register to register copies,
+which would normally be translated into \texttt{add (reg) 0} instructions and incur overhead.
+Howver, copy propagation completely eliminates all those copies and leaves zero overhead in its wake.
+
+\end{document}
