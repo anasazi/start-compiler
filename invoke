@@ -20,7 +20,7 @@ echo "compiling typed examples"
 for file in ./examples/input/*.start; do
   file=`basename -s .start $file`
   echo "   $file.start -> optimized $file.start"
-  runghc main.hs < "./examples/input/$file.start" > "./examples/output/$file.start"
+  runghc main.hs ../start/bin/start.dart < "./examples/input/$file.start" > "./examples/output/$file.start"
 done
 
 rm ./untyped/output/*
@@ -28,5 +28,5 @@ echo "compiling untyped examples"
 for file in ./untyped/input/*.start; do
   file=`basename -s .start $file`
   echo "   $file.start -> optimized $file.start"
-  runghc main.hs < "./untyped/input/$file.start" > "./untyped/output/$file.start"
+  runghc main.hs ../start/bin/start.dart < "./untyped/input/$file.start" > "./untyped/output/$file.start"
 done

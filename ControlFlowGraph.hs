@@ -15,7 +15,8 @@ module ControlFlowGraph
 , removeEmptyVertices
 , edge
 , spanningTree, reachableNodes
-, splitEdge
+, splitEdge, antiSpanningTree
+, addEdgeCFG, removeEdgeCFG
 ) where
 
 import InstructionSet
@@ -31,6 +32,7 @@ import Data.Array
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 import SIF
+import Debug.Trace
 
 newtype Vertex = Vertex Integer deriving (Eq, Ord, Enum, Show)
 data Edge = Leap Vertex | Fall Vertex deriving (Eq, Ord, Show)
@@ -52,7 +54,11 @@ goesTo = edge id id
 edge jump _ (Leap x) = jump x
 edge _ fall (Fall x) = fall x
 
+addEdgeCFG v e (CFG entry blocks edges) = CFG entry blocks $ addEdge v e edges
+removeEdgeCFG v e (CFG entry blocks edges) = CFG entry blocks $ removeEdge v e edges
+
 addEdge v e edges = M.adjust (S.insert e) v edges
+removeEdge v e edges = M.adjust (S.delete e) v edges
 
 -- the provided block should end in a NOP that can be replaced by the branch if necessary
 splitEdge :: CFG SIFInstruction -> (Vertex, Edge) -> [SIFInstruction] -> CFG SIFInstruction
@@ -66,14 +72,14 @@ splitEdge cfg@(CFG entry blocks edges) (src, Leap tar) new =
       fixParent = modifyNode (fmap (\i -> if i == old then SIFInstruction loc (Branch op newLeader) else i)) src
       i' = let SIFInstruction l NOP = last new in SIFInstruction l (Branch Jump targetLeader)
       new' = init new ++ [i']
-      [b] = toBlocks new'
-  in fixParent $ CFG entry (M.insert v b blocks) (addEdge src from . addEdge v to $ edges)
+      b = BB new'
+  in fixParent $ CFG entry (M.insert v b blocks) (addEdge src from . M.insert v (S.singleton to) . removeEdge src (Leap tar) $ edges)
 splitEdge cfg@(CFG entry blocks edges) (src, Fall tar) new =
   let v = succ . maximum $ vertices cfg
       from = Fall v
       to = Fall tar
-      [b] = toBlocks new
-  in CFG entry (M.insert v b blocks) (addEdge src from . addEdge v to $ edges)
+      b = BB new
+  in CFG entry (M.insert v b blocks) (addEdge src from . M.insert v (S.singleton to) . removeEdge src (Fall tar) $ edges)
 
 succs :: CFG i -> Vertex -> S.Set Edge
 succs cfg v = edges cfg M.! v
@@ -149,19 +155,25 @@ reachable cfg =
 		vs' = S.toList newlyMarked ++ vs
 		unmarked' = unmarked S.\\ newlyMarked
 
+antiSpanningTree cfg =
+  let inside = spanningTree cfg
+      all = S.fromList $ concat [ [ (v, e) | e <- S.toList es ] | (v, es) <- M.toList $ edges cfg ]
+      outside = all S.\\ inside
+  in outside
+
 spanningTree :: CFG i -> S.Set (Vertex, Edge)
 spanningTree cfg@(CFG entry blocks succs) = f S.empty
   where
   nodes = S.fromList $ vertices cfg
   edges = concat [ [ (v, e) | e <- S.toList es ] | (v, es) <- M.toList succs ]
-  g ves = M.fromList . map (second S.singleton) . S.toList $ ves
+  g [] = M.fromList [ (v, S.empty) | v <- S.toList nodes ]
+  g ((v,e):ves) = addEdge v e $ g ves
+  --g ves = M.fromList . map (second S.singleton) . S.toList $ ves
   f es = 
-    let found = reachableNodes (CFG entry blocks (g es)) 
+    let found = reachableNodes (CFG entry blocks (g $ S.toList es)) 
 	(e:_) = [ x | x <- edges, fst x `S.member` found, goesTo (snd x) `S.notMember` found ]
     in 
-    if found == nodes
-    then es
-    else f (S.insert e es)
+    if found == nodes then es else f (S.insert e es)
 
 reachableNodes :: CFG i -> S.Set Vertex
 reachableNodes cfg = reachable

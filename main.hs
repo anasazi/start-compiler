@@ -12,6 +12,8 @@ import Control.Monad.State
 import InstructionSet
 import ConstantPropagation
 import ValueNumbering
+import Profile
+import System.Environment (getArgs)
 
 pp :: Pretty a => a -> IO ()
 pp = print . pretty
@@ -20,14 +22,17 @@ data Hole = Hole
 hole = undefined
 
 main = do
+  [startloc] <- getArgs
   input <- getContents
   let parsed = readProgram input
-  either print printCFGs parsed
+  either print (printCFGs startloc) parsed
 
-printCFGs ast@(SIFProgram ts ms gs is)  = do
+printCFGs startloc ast@(SIFProgram ts ms gs is)  = do
   let rs = routines ast
-  let nextInstr = 1 + maxLocBlocks rs
   let cfgs = fmap buildCFG rs
+  let instrumented = instrumentAll cfgs
+  let rs' = M.map (fromBlocks . linearize) instrumented
+  {-
   let ssas = allToSSA cfgs
   let vnums = fmap valueNumbering ssas
   {-
@@ -44,9 +49,15 @@ printCFGs ast@(SIFProgram ts ms gs is)  = do
   let cprop = fmap constantPropagation vnums
   let sifs = allFromSSA cprop
   let rs' = M.map (fromBlocks . linearize) sifs
+  -}
   let (ms', is') = uncurry renumber . second concat . unzip . M.toList $ rs'
   let ast' = SIFProgram ts ms' gs is'
-  pp ast'
+  counts <- profile startloc ast'
+  let profiled = processCounts counts cfgs
+  let rs'' = M.map (fromBlocks . linearize) profiled
+  let (ms'', is'') = uncurry renumber . second concat . unzip . M.toList $ rs''
+  let ast'' = SIFProgram ts ms'' gs is''
+  pp ast''
 
 renumber ms is =
   let old2new = M.fromList $ zip (map loc is) [1..]

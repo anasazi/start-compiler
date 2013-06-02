@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 module BasicBlock 
-( BasicBlock, isEmpty
+( BasicBlock(..), isEmpty
 , leader, end, body
 , fallsTo, jumpsTo, label, locs
 , toBlocks, fromBlocks, fromBlock
