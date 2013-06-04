@@ -3,12 +3,14 @@ module ConstantPropagation
 ( constantPropagation
 ) where
 
+import BasicBlock
 import ControlFlowGraph
 import StaticSingleAssignment
 import SIF
 import Data.Monoid
 import qualified Data.Map as M
 import qualified Data.Foldable as F
+import Data.Maybe
 
 data Hole = Hole
 hole = undefined
@@ -23,9 +25,42 @@ instance Monoid Constancy where
   x `mappend` y | x /= y = Variable
   Variable `mappend` _ = Variable
 
-newtype Knowledge = K (M.Map (SSAVar Integer) Constancy)
+newtype Knowledge = K (M.Map (SSAVar Integer) Constancy) deriving (Eq, Show)
+-- initial locals have variable constancy
+value _ (Local _ _ _ 0) = Variable
 value (K k) var = k M.! var
 learn (K k) var con = K $ M.insert var con k
+
+-- don't take conditional branches into account
+simpleConstantPropagation cfg = 
+  let defs = M.fromList . fmap (\(SSAInstruction _ (Just var) opc) -> (var, opc)) . filter (\(SSAInstruction _ tar _) -> isJust tar) . fromBlocks . linearize $ cfg
+      vars = M.keys defs
+      -- non-initial variables have unknown constancy
+      k0 = K $ M.fromList [ (var, Unknown) | var <- vars ]
+      step k = K $ M.fromList [ (var, eval k (defs M.! var)) | var <- vars ]
+      kEnd = fixEq step k0
+  in hole
+
+constantPropagation :: CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
+constantPropagation = hole
+
+fixEq f v | v == v'   = v
+	  | otherwise = fixEq f v'
+  where v' = f v
+
+newOpcode k (Phi inc) =
+  case eval k (Phi inc) of
+    Const (Number n) -> Copy (Val (Constant n))
+    Const (Logic True) -> Copy (Val (Constant 1))
+    Const (Logic False) -> Copy (Val (Constant 0))
+    Variable -> Phi inc
+newOpcode k (SIF sif) = hole
+newOpcode k (Copy val) =
+  case eval k val of
+    Const (Number n) -> Copy (Val (Constant n))
+    Const (Logic True) -> Copy (Val (Constant 1))
+    Const (Logic False) -> Copy (Val (Constant 0))
+    Variable -> Copy val
 
 class Eval a where
   eval :: Knowledge -> a -> Constancy
@@ -93,9 +128,3 @@ instance Eval (SSAOpcode Integer) where
 instance Eval (SSAInstruction Integer) where
   eval k (SSAInstruction loc Nothing opc) = error "cannot evalute a non-assignment"
   eval k (SSAInstruction loc (Just tar) opc) = eval k opc
-
--- don't take conditional branches into account
-simpleConstantPropagation = hole
-
-constantPropagation :: CFG (SSAInstruction Integer) -> CFG (SSAInstruction Integer)
-constantPropagation = hole
