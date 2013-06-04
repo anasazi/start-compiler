@@ -1,6 +1,32 @@
 #!/bin/bash
-for file in ./examples/*.start; do
-    echo "compiling $file"
-    runghc main <$file >"./processed/`basename $file`"
-#    ./main <$file >"./processed/`basename $file`" 
+#for file in ./examples/*.start; do
+    ##echo "compiling $file"
+    #runghc main.hs <$file >"./processed/`basename $file`"
+#done
+echo "generating start IR for typed examples"
+for file in ./examples/source/*.dart; do
+  file=`basename -s .dart $file`
+  echo "   $file.dart -> $file.start"
+  dart ../start/bin/start.dart -c "examples/source/$file.dart" > "examples/input/$file.start"
+done
+
+echo "generating start IR for untyped examples"
+for file in ./untyped/source/*.dart; do
+  file=`basename -s .dart $file`
+  echo "   $file.dart -> $file.start"
+  dart ../start/bin/start.dart -c "untyped/source/$file.dart" > "untyped/input/$file.start"
+done
+
+echo "compiling typed examples"
+for file in ./examples/input/*.start; do
+  file=`basename -s .start $file`
+  echo "   $file.start -> optimized $file.start"
+  runghc main.hs < "./examples/input/$file.start" > "./examples/output/$file.start"
+done
+
+echo "compiling untyped examples"
+for file in ./untyped/input/*.start; do
+  file=`basename -s .start $file`
+  echo "   $file.start -> optimized $file.start"
+  runghc main.hs < "./untyped/input/$file.start" > "./untyped/output/$file.start"
 done

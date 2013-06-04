@@ -1,9 +1,8 @@
 main
 examples/
-processed
+untyped/
 *.pdf
 *.hi
 *.o
 old/
-source/
 broken
