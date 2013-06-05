@@ -34,7 +34,7 @@ analyzeBranches counts cfg =
       isForward :: Integer -> Integer -> Bool
       isForward src tar = length (takeWhile ((/=src) . loc) is) < length (takeWhile ((/=tar) . loc) is)
       -- backward branches are predicted as taken
-      isBackward src tar = length (takeWhile ((/=src) . loc) is) > length (takeWhile ((/=tar) . loc) is)
+      --isBackward src tar = length (takeWhile ((/=src) . loc) is) > length (takeWhile ((/=tar) . loc) is)
       withBranches = M.filter (isBranch . end) (blocks cfg)
       fallFor v = (\((_,a),b) -> (a,b)) . head . M.toList $ M.filterWithKey (\(k,e) _ -> k == v && case e of Fall _ -> True ; _ -> False) ve2s
       leapFor v = (\((_,a),b) -> (a,b)) . head . M.toList $ M.filterWithKey (\(k,e) _ -> k == v && case e of Leap _ -> True ; _ -> False) ve2s
@@ -44,10 +44,18 @@ analyzeBranches counts cfg =
 	in modifyNode (modifyBlock (\is -> init is ++ [br])) v . addEdgeCFG v fall . addEdgeCFG v jump . removeEdgeCFG v a . removeEdgeCFG v b $ cfg
   in foldl update cfg (M.toList better)
 
-betterBranch cfg (Fall f,fc) (Leap j,jc) True br@(SIFInstruction loc (Branch op tar)) | fc > jc = (br, Fall f, Leap j) 
-										      | otherwise = (SIFInstruction loc (Branch op (Label (label $ blocks cfg M.! f))), Fall j, Leap f)
-betterBranch cfg (Fall f,fc) (Leap j,jc) False br@(SIFInstruction loc (Branch op tar)) | jc > fc = (br, Fall f, Leap j)
-										       | otherwise = (SIFInstruction loc (Branch op (Label (label $ blocks cfg M.! f))), Fall j, Leap f)
+betterBranch cfg (Fall f,fc) (Leap j,jc) True br@(SIFInstruction loc (Branch (IfZero test) tar)) 
+  | fc > jc = (br, Fall f, Leap j) 
+  | otherwise = (SIFInstruction loc (Branch (IfSet test) (Label (label $ blocks cfg M.! f))), Fall j, Leap f)
+betterBranch cfg (Fall f,fc) (Leap j,jc) False br@(SIFInstruction loc (Branch (IfZero test) tar)) 
+  | jc > fc = (br, Fall f, Leap j) 
+  | otherwise = (SIFInstruction loc (Branch (IfSet test) (Label (label $ blocks cfg M.! f))), Fall j, Leap f)
+betterBranch cfg (Fall f,fc) (Leap j,jc) True br@(SIFInstruction loc (Branch (IfSet test) tar)) 
+  | fc > jc = (br, Fall f, Leap j) 
+  | otherwise = (SIFInstruction loc (Branch (IfZero test) (Label (label $ blocks cfg M.! f))), Fall j, Leap f)
+betterBranch cfg (Fall f,fc) (Leap j,jc) False br@(SIFInstruction loc (Branch (IfSet test) tar)) 
+  | jc > fc = (br, Fall f, Leap j) 
+  | otherwise = (SIFInstruction loc (Branch (IfZero test) (Label (label $ blocks cfg M.! f))), Fall j, Leap f)
 
 recoverCounts ve2s =
   let nodes = S.toList . S.fromList . map fst . M.keys $ ve2s
