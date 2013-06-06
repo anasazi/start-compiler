@@ -30,9 +30,8 @@ main = do
 printCFGs startloc ast@(SIFProgram ts ms gs is)  = do
   let rs = routines ast
   let cfgs = fmap buildCFG rs
-  let instrumented = instrumentAll cfgs
-  let rs' = M.map (fromBlocks . linearize) instrumented
-  {-
+  --let instrumented = instrumentAll cfgs
+  --let rs' = M.map (fromBlocks . linearize) instrumented
   let ssas = allToSSA cfgs
   let vnums = fmap valueNumbering ssas
   {-
@@ -49,7 +48,10 @@ printCFGs startloc ast@(SIFProgram ts ms gs is)  = do
   let cprop = fmap constantPropagation vnums
   let sifs = allFromSSA cprop
   let rs' = M.map (fromBlocks . linearize) sifs
-  -}
+  let (ms', is') = uncurry renumber . second concat . unzip . M.toList $ rs'
+  let ast' = SIFProgram ts ms' gs is'
+  pp ast'
+  {-
   let (ms', is') = uncurry renumber . second concat . unzip . M.toList $ rs'
   let ast' = SIFProgram ts ms' gs is'
   counts <- profile startloc ast'
@@ -58,6 +60,7 @@ printCFGs startloc ast@(SIFProgram ts ms gs is)  = do
   let (ms'', is'') = uncurry renumber . second concat . unzip . M.toList $ rs''
   let ast'' = SIFProgram ts ms'' gs is''
   pp ast''
+  -}
 
 renumber ms is =
   let old2new = M.fromList $ zip (map loc is) [1..]
