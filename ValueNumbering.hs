@@ -49,7 +49,6 @@ dominatorValueNumberTechnique cfg =
   let vnum = dvnt (M.empty, M.empty) cfg (entry cfg)
       vnum' = removeEmptyVertices vnum
   in fixJumps vnum'
--- TODO need to clean up the CFG
 
 fixJumps cfg =
   let jumping = M.filter (isJump . end) (blocks cfg)
@@ -62,7 +61,6 @@ fixJumps cfg =
 	  Jump -> SSAInstruction loc Nothing (SIF (Branch Jump (Val (Label s))))
 	  IfZero test -> SSAInstruction loc Nothing (SIF (Branch (IfZero test) (Val (Label s))))
 	  IfSet test -> SSAInstruction loc Nothing (SIF (Branch (IfSet test) (Val (Label s))))
-      --newBranches = M.mapWithKey f jumping
       setBranch v b = fmap (\i -> if isJump i then f v b else i) b
       blocks' = M.mapWithKey setBranch jumping
   in mapBlocks (\v b -> M.findWithDefault b v blocks') cfg
@@ -107,10 +105,10 @@ process i@(SSAInstruction loc (Just tar) opc) = do
   
 -- if redundant expression then throw away
 -- otherwise keep
-standardProcess loc tar (SIF (Unary op arg typ)) | op `elem` [Load, New, Newlist] = do
+standardProcess loc tar (SIF (Unary op arg typ)) | op `elem` [Isnull, Load, New, Newlist, Checknull] = do
   putVarVN tar tar
   return $ Just $ SSAInstruction loc (Just tar) (SIF (Unary op arg typ))
-standardProcess loc tar (SIF (Binary op l r typ)) | op `elem` [LoadDynamic] = do
+standardProcess loc tar (SIF (Binary op l r typ)) | op `elem` [Istype, Checktype, LoadDynamic] = do
   putVarVN tar tar
   return $ Just $ SSAInstruction loc (Just tar) (SIF (Binary op l r typ))
 standardProcess loc tar expr = do
