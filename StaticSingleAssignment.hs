@@ -117,14 +117,14 @@ rename !cfg v = do
   let dominated = M.keys $ M.filter (maybe False (==v)) idoms
   cfg''' <- F.foldlM rename cfg'' dominated
   -- pop variables defined in block
-  F.mapM_ popPhi $ body (blocks cfg''' M.! v)
+  F.mapM_ popDef $ body (blocks cfg''' M.! v)
   return cfg'''
 
 type RenameState = M.Map (SIFIdentifier, SIFOffset) (Integer, [Integer])
 
-popPhi :: SSAInstruction (Maybe Integer) -> State RenameState ()
-popPhi (SSAInstruction _ (Just tar) (Phi _)) = popVar tar
-popPhi _ = return ()
+popDef :: SSAInstruction (Maybe Integer) -> State RenameState ()
+popDef (SSAInstruction _ (Just tar@(Local {})) _) = popVar tar
+popDef _ = return ()
 
 markPhis :: Vertex -> BasicBlock (SSAInstruction (Maybe Integer)) -> State RenameState (BasicBlock (SSAInstruction (Maybe Integer)))
 markPhis p b = T.forM b $ \i@(SSAInstruction loc tar opc) -> do
