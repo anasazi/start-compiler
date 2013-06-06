@@ -121,12 +121,6 @@ evalBinary Checktype _ _ = Variable
 evalBinary LoadDynamic _ _ = Variable
 
 evalBinary _ left right = left <> right
-{-
-evalBinary _ _ Unknown = Unknown
-evalBinary _ Unknown _ = Unknown
-evalBinary _ _ Variable = Variable
-evalBinary _ Variable _ = Variable
--}
 
 instance Eval (SSAOpcode Integer) where
   eval k (Phi inc) = F.foldMap (eval k) inc
